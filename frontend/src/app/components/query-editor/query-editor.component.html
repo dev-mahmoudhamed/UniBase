@@ -1,0 +1,38 @@
+<div class="query-editor">
+    <div class="editor-header">
+        <div class="connection-pill">
+            @if (activeConnection() && sessionId()) {
+            <span class="status-indicator connected"></span>
+            <span>{{ activeConnection()?.name }}</span>
+            } @else if (activeConnection() && isLoadingMetadata()) {
+            <span class="status-indicator connecting"></span>
+            <span>Connecting...</span>
+            } @else if (activeConnection()) {
+            <span class="status-indicator error"></span>
+            <span>Connection failed</span>
+            } @else {
+            <span class="status-indicator"></span>
+            <span>No connection selected</span>
+            }
+        </div>
+
+        <!-- Language badge -->
+        <!-- <span class="language-badge" [class.json]="editorLanguage() === 'json'">
+            {{ editorLanguage().toUpperCase() }}
+        </span> -->
+
+        <button class="btn btn-primary" (click)="onExecute()" [disabled]="!activeConnection() || !sessionId()"
+            title="Execute (Ctrl+Enter)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Run
+        </button>
+    </div>
+
+    <div class="editor-container">
+        <ngx-monaco-editor [options]="editorOptions" [ngModel]="queryText()" (ngModelChange)="queryText.set($event)"
+            (onInit)="onEditorInit($event)">
+        </ngx-monaco-editor>
+    </div>
+</div>

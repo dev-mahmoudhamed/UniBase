@@ -1,0 +1,76 @@
+<div class="results-viewer">
+    <div class="results-header">
+        <div class="flex items-center gap-2">
+            <h3 class="section-title">Results</h3>
+            @if (isQueryResult(result())) {
+            <div class="results-meta">
+                {{ $any(result()).rowCount }} rows &bull; {{ $any(result()).executionTime }}ms
+            </div>
+            }
+        </div>
+        <div class="flex items-center gap-2">
+            <button class="btn btn-ghost p-1" (click)="toggleCompact()"
+                [title]="isCompact() ? 'Standard view' : 'Compact view'">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                    <line x1="3" y1="15" x2="21" y2="15"></line>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="results-content">
+        <div *ngIf="isLoading()" class="loading-state h-full">
+            <div class="table-container w-full h-full">
+                <div class="table-header">
+                    <div class="header-cell skeleton" style="border: none; margin: 8px; width: 100px; height: 16px;">
+                    </div>
+                    <div class="header-cell skeleton" style="border: none; margin: 8px; width: 100px; height: 16px;">
+                    </div>
+                    <div class="header-cell skeleton" style="border: none; margin: 8px; width: 100px; height: 16px;">
+                    </div>
+                </div>
+                <div class="p-3 flex flex-col gap-2">
+                    <div class="skeleton" style="height: 32px; width: 100%;"></div>
+                    <div class="skeleton" style="height: 32px; width: 100%;"></div>
+                    <div class="skeleton" style="height: 32px; width: 100%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div *ngIf="!isLoading() && !result()" class="empty-state">
+            <p>No query executed</p>
+            <p class="metadata">Results will appear here after execution</p>
+        </div>
+
+        <div *ngIf="!isLoading() && isQueryError(result())" class="error-state">
+            <span style="font-size: 32px; margin-bottom: 16px;">⚠️</span>
+            <p class="font-semibold">Query Execution Failed</p>
+            <div class="error-message">{{ $any(result()).message }}</div>
+        </div>
+
+        <div *ngIf="!isLoading() && isQueryResult(result())" class="table-container" [class.compact]="isCompact()">
+            <div class="table-header">
+                @for (column of $any(result()).columns; track column) {
+                <div class="header-cell" [class.compact]="isCompact()">{{ column }}</div>
+                }
+            </div>
+
+            <cdk-virtual-scroll-viewport [itemSize]="isCompact() ? 28 : 35" class="table-viewport">
+                <div *cdkVirtualFor="let row of $any(result()).rows; let even = even; trackBy: rowTrackBy"
+                    class="table-row" [class.even]="even" [class.compact]="isCompact()">
+                    @for (column of $any(result()).columns; track column) {
+                    <div class="table-cell" [class.compact]="isCompact()" [title]="row[column]">
+                        {{ row[column] !== null && row[column] !== undefined ? row[column] : 'NULL' }}
+                    </div>
+                    }
+                </div>
+            </cdk-virtual-scroll-viewport>
+
+            <div *ngIf="$any(result()).rows.length === 0" class="empty-state">
+                <p>Success, but no data returned</p>
+            </div>
+        </div>
+    </div>
+</div>

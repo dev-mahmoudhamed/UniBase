@@ -1,0 +1,355 @@
+{
+  "version": "1.0.0",
+  "providers": [
+    {
+      "id": "postgresql",
+      "name": "postgresql",
+      "displayName": "PostgreSQL",
+      "icon": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg",
+      "description": "PostgreSQL is a powerful, open source object-relational database system",
+      "defaultPort": 5432,
+      "fields": [
+        {
+          "key": "name",
+          "label": "Connection Name",
+          "type": "text",
+          "placeholder": "My PostgreSQL DB",
+          "required": true,
+          "helpText": "A friendly name to identify this connection"
+        },
+        {
+          "key": "host",
+          "label": "Host",
+          "type": "text",
+          "placeholder": "localhost",
+          "defaultValue": "localhost",
+          "required": true,
+          "helpText": "Server hostname or IP address"
+        },
+        {
+          "key": "port",
+          "label": "Port",
+          "type": "number",
+          "placeholder": "5432",
+          "defaultValue": 5432,
+          "required": true,
+          "helpText": "PostgreSQL server port"
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "placeholder": "postgres",
+          "required": true,
+          "helpText": "Database name to connect to"
+        },
+        {
+          "key": "user",
+          "label": "Username",
+          "type": "text",
+          "placeholder": "postgres",
+          "required": true,
+          "helpText": "Database user"
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "placeholder": "",
+          "required": false,
+          "helpText": "Database password (leave empty if not required)"
+        },
+        {
+          "key": "ssl_mode",
+          "label": "SSL Mode",
+          "type": "select",
+          "defaultValue": "disable",
+          "required": false,
+          "options": ["disable", "require", "verify-ca", "verify-full"],
+          "helpText": "SSL connection mode"
+        }
+      ],
+      "features": {
+        "supportsSSL": true,
+        "supportsMultipleDB": true,
+        "supportsSchemas": true,
+        "supportsProcedures": true,
+        "supportsFunctions": true,
+        "supportsViews": true
+      }
+    },
+    {
+      "id": "mssql",
+      "name": "mssql",
+      "displayName": "Microsoft SQL Server",
+      "icon": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/microsoftsqlserver/microsoftsqlserver-plain.svg",
+      "description": "Microsoft SQL Server is a relational database management system developed by Microsoft",
+      "defaultPort": 1433,
+      "fields": [
+        {
+          "key": "name",
+          "label": "Connection Name",
+          "type": "text",
+          "placeholder": "My SQL Server DB",
+          "required": true,
+          "helpText": "A friendly name to identify this connection"
+        },
+        {
+          "key": "host",
+          "label": "Host",
+          "type": "text",
+          "placeholder": "localhost",
+          "defaultValue": "localhost",
+          "required": true,
+          "helpText": "Server hostname or IP address"
+        },
+        {
+          "key": "port",
+          "label": "Port",
+          "type": "number",
+          "placeholder": "1433",
+          "defaultValue": 1433,
+          "required": true,
+          "helpText": "SQL Server port"
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "placeholder": "master",
+          "required": false,
+          "helpText": "Database name (optional, can connect to server level)"
+        },
+        {
+          "key": "user",
+          "label": "Username",
+          "type": "text",
+          "placeholder": "sa",
+          "required": false,
+          "helpText": "SQL Server user (optional for Windows Auth)"
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "placeholder": "",
+          "required": false,
+          "helpText": "SQL Server password"
+        }
+      ],
+      "features": {
+        "supportsSSL": true,
+        "supportsMultipleDB": true,
+        "supportsSchemas": true,
+        "supportsProcedures": true,
+        "supportsFunctions": true,
+        "supportsViews": true
+      }
+    },
+    {
+      "id": "mysql",
+      "name": "mysql",
+      "displayName": "MySQL",
+      "icon": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mysql/mysql-original.svg",
+      "description": "MySQL is an open-source relational database management system",
+      "defaultPort": 3306,
+      "fields": [
+        {
+          "key": "name",
+          "label": "Connection Name",
+          "type": "text",
+          "placeholder": "My MySQL DB",
+          "required": true,
+          "helpText": "A friendly name to identify this connection"
+        },
+        {
+          "key": "host",
+          "label": "Host",
+          "type": "text",
+          "placeholder": "localhost",
+          "defaultValue": "localhost",
+          "required": true,
+          "helpText": "Server hostname or IP address"
+        },
+        {
+          "key": "port",
+          "label": "Port",
+          "type": "number",
+          "placeholder": "3306",
+          "defaultValue": 3306,
+          "required": true,
+          "helpText": "MySQL server port"
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "placeholder": "mysql",
+          "required": true,
+          "helpText": "Database name to connect to"
+        },
+        {
+          "key": "user",
+          "label": "Username",
+          "type": "text",
+          "placeholder": "root",
+          "required": true,
+          "helpText": "MySQL user"
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "placeholder": "",
+          "required": false,
+          "helpText": "MySQL password"
+        }
+      ],
+      "features": {
+        "supportsSSL": true,
+        "supportsMultipleDB": true,
+        "supportsSchemas": false,
+        "supportsProcedures": true,
+        "supportsFunctions": true,
+        "supportsViews": true
+      }
+    },
+    {
+      "id": "mongodb",
+      "name": "mongodb",
+      "displayName": "MongoDB",
+      "icon": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mongodb/mongodb-original.svg",
+      "description": "MongoDB is a source-available cross-platform document-oriented database program",
+      "defaultPort": 27017,
+      "fields": [
+        {
+          "key": "name",
+          "label": "Connection Name",
+          "type": "text",
+          "placeholder": "My MongoDB DB",
+          "required": true,
+          "helpText": "A friendly name to identify this connection"
+        },
+        {
+          "key": "host",
+          "label": "Host",
+          "type": "text",
+          "placeholder": "localhost",
+          "defaultValue": "localhost",
+          "required": true,
+          "helpText": "Server hostname or IP address"
+        },
+        {
+          "key": "port",
+          "label": "Port",
+          "type": "number",
+          "placeholder": "27017",
+          "defaultValue": 27017,
+          "required": true,
+          "helpText": "MongoDB server port"
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "placeholder": "test",
+          "required": false,
+          "helpText": "Database name to connect to"
+        },
+        {
+          "key": "user",
+          "label": "Username",
+          "type": "text",
+          "placeholder": "",
+          "required": false,
+          "helpText": "MongoDB user"
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "placeholder": "",
+          "required": false,
+          "helpText": "MongoDB password"
+        }
+      ],
+      "features": {
+        "supportsSSL": true,
+        "supportsMultipleDB": true,
+        "supportsSchemas": false,
+        "supportsProcedures": false,
+        "supportsFunctions": false,
+        "supportsViews": true
+      }
+    },
+    {
+      "id": "redis",
+      "name": "redis",
+      "displayName": "Redis",
+      "icon": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg",
+      "description": "Redis is an open source, in-memory data structure store, used as a database, cache, and message broker.",
+      "defaultPort": 6379,
+      "fields": [
+        {
+          "key": "name",
+          "label": "Connection Name",
+          "type": "text",
+          "placeholder": "My Redis DB",
+          "required": true,
+          "helpText": "A friendly name to identify this connection"
+        },
+        {
+          "key": "host",
+          "label": "Host",
+          "type": "text",
+          "placeholder": "localhost",
+          "defaultValue": "localhost",
+          "required": true,
+          "helpText": "Server hostname or IP address"
+        },
+        {
+          "key": "port",
+          "label": "Port",
+          "type": "number",
+          "placeholder": "6379",
+          "defaultValue": 6379,
+          "required": true,
+          "helpText": "Redis server port"
+        },
+        {
+          "key": "database",
+          "label": "Database Index",
+          "type": "number",
+          "placeholder": "0",
+          "defaultValue": 0,
+          "required": false,
+          "helpText": "Redis database index (optional, defaults to 0)"
+        },
+        {
+          "key": "user",
+          "label": "Username",
+          "type": "text",
+          "placeholder": "default",
+          "required": false,
+          "helpText": "Redis username (for ACLs)"
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "placeholder": "",
+          "required": false,
+          "helpText": "Redis password"
+        }
+      ],
+      "features": {
+        "supportsSSL": true,
+        "supportsMultipleDB": true,
+        "supportsSchemas": false,
+        "supportsProcedures": false,
+        "supportsFunctions": false,
+        "supportsViews": false
+      }
+    }
+  ]
+}

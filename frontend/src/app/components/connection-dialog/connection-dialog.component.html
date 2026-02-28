@@ -1,0 +1,80 @@
+<div class="dialog-overlay" (click)="onCancel()">
+    <div class="dialog-content" (click)="$event.stopPropagation()">
+        <div class="dialog-header">
+            <h2 class="section-title">{{ isEditMode() ? 'Edit Connection' : 'New Connection' }}</h2>
+            <button class="btn btn-ghost p-2" (click)="onCancel()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <div class="dialog-body">
+            <div class="form-group">
+                <label>Database Provider</label>
+                <select [ngModel]="selectedProviderId()"
+                    (ngModelChange)="selectedProviderId.set($event); onProviderChange()">
+                    @for (provider of providers(); track provider.id) {
+                    <option [value]="provider.id">{{ provider.displayName }}</option>
+                    }
+                </select>
+            </div>
+
+            @for (field of fields(); track field.key) {
+            <div class="form-group">
+                <label>
+                    {{ field.label }}
+                    @if (!field.required) {
+                    <span class="optional-badge">(optional)</span>
+                    }
+                </label>
+
+                @if (field.type === 'select') {
+                <select [ngModel]="getFieldValue(field.key)" (ngModelChange)="setFieldValue(field.key, $event)">
+                    @for (option of field.options; track option) {
+                    <option [value]="option">{{ option }}</option>
+                    }
+                </select>
+                } @else {
+                <input [type]="field.type" [ngModel]="getFieldValue(field.key)"
+                    (ngModelChange)="setFieldValue(field.key, $event)" [placeholder]="field.placeholder || ''">
+                }
+            </div>
+            }
+
+            @if (errors().length > 0) {
+            <div class="error-messages">
+                @for (error of errors(); track $index) {
+                <div class="error-item">{{ error }}</div>
+                }
+            </div>
+            }
+
+            <div class="test-section">
+                <div style="display: flex; justify-content: flex-start; align-items: center;">
+                    <b class="test-link-bold" (click)="!testStatus().loading && onTest()">
+                        @if (testStatus().loading) {
+                        <span class="spinner"></span>
+                        }
+                        {{ testStatus().loading ? 'Testing...' : 'Test Connection' }}
+                    </b>
+                </div>
+
+                @if (testStatus().message) {
+                <div class="test-status" [class.success]="testStatus().success" [class.error]="!testStatus().success">
+                    <span style="font-size: 16px;">{{ testStatus().success ? '✓' : '⚠' }}</span>
+                    {{ testStatus().message }}
+                </div>
+                }
+            </div>
+        </div>
+
+        <div class="dialog-footer">
+            <button class="btn btn-secondary" (click)="onCancel()">Cancel</button>
+            <button class="btn btn-primary" (click)="onSave()" [disabled]="testStatus().loading">
+                {{ isEditMode() ? 'Update Connection' : 'Save Connection' }}
+            </button>
+        </div>
+    </div>
+</div>

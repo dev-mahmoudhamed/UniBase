@@ -1,0 +1,63 @@
+<div class="app-container">
+  <as-split direction="horizontal" [gutterSize]="4">
+    <as-split-area [size]="sidebarCollapsed() ? 0 : 20" [minSize]="0" [maxSize]="60">
+      <app-sidebar (toggleSidebar)="toggleSidebar()" (openConnectionDialog)="openConnectionDialog()"
+        (editConnectionEvent)="editConnection($event)" (collectionSelected)="onCollectionSelected($event)">
+      </app-sidebar>
+    </as-split-area>
+
+    <as-split-area [size]="sidebarCollapsed() ? 100 : 80">
+      @if (isMongoConnection()) {
+      <!-- MongoDB JSON Viewer Mode -->
+      <div class="json-viewer-panel">
+        <div class="json-viewer-header">
+          <div class="json-viewer-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span>Document Viewer</span>
+          </div>
+          <span class="json-badge">JSON</span>
+        </div>
+        <div class="json-editor-container">
+          @if (jsonViewerData()) {
+          <ngx-monaco-editor [options]="jsonEditorOptions" [ngModel]="jsonViewerData()"
+            (onInit)="onJsonEditorInit($event)">
+          </ngx-monaco-editor>
+          } @else {
+          <div class="json-empty-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            <p>Select a collection to view documents</p>
+            <span>Click on a collection in the sidebar explorer</span>
+          </div>
+          }
+        </div>
+      </div>
+      } @else {
+      <!-- Standard SQL Mode -->
+      <as-split direction="vertical" [gutterSize]="4">
+        <as-split-area [size]="60" [minSize]="20">
+          <app-query-editor (executeQuery)="executeQuery($event)"></app-query-editor>
+        </as-split-area>
+
+        <as-split-area [size]="40" [minSize]="20">
+          <app-results-viewer [result]="queryResult()" [isLoading]="isLoadingQuery()">
+          </app-results-viewer>
+        </as-split-area>
+      </as-split>
+      }
+    </as-split-area>
+  </as-split>
+</div>
+
+@if (showConnectionDialog()) {
+<app-connection-dialog (close)="closeConnectionDialog()" [editConnection]="editingConnection()">
+</app-connection-dialog>
+}

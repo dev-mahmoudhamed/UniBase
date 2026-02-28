@@ -1,0 +1,107 @@
+.query-editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-primary);
+}
+
+.editor-header {
+  padding: 10px 16px;
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+}
+
+.connection-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: var(--size-metadata);
+  color: var(--text-secondary);
+
+  .status-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+
+    &.connected {
+      background-color: var(--status-success);
+      box-shadow: 0 0 8px var(--status-success);
+    }
+
+    &.connecting {
+      background-color: var(--status-warning);
+      animation: pulse 1.5s infinite;
+    }
+
+    &.error {
+      background-color: var(--status-error);
+    }
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.editor-container {
+  flex: 1;
+  position: relative;
+
+  ngx-monaco-editor {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+::ng-deep {
+  .monaco-editor {
+    .margin {
+      background-color: var(--bg-primary) !important;
+    }
+    .monaco-editor-background {
+      background-color: var(--bg-primary) !important;
+    }
+
+    .line-numbers {
+      color: var(--text-muted) !important;
+      font-size: 12px !important;
+    }
+
+    .current-line {
+      background: rgba(255, 255, 255, 0.02) !important;
+      border: none !important;
+    }
+
+    .selectionHighlight {
+      background: rgba(124, 58, 237, 0.2) !important;
+    }
+
+    .scrollbar .slider {
+      background: var(--border-color) !important;
+      border-radius: 4px !important;
+
+      &:hover {
+        background: var(--text-muted) !important;
+      }
+    }
+  }
+}

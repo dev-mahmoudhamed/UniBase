@@ -1,0 +1,117 @@
+<div class="sidebar">
+  <div class="sidebar-header">
+    <button class="btn btn-add-connection" (click)="onAddConnection()" title="Add Connection">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+      Add Connection
+    </button>
+  </div>
+
+  <div class="sidebar-content">
+    <div class="connections-list">
+      @for (connection of connections(); track connection.id) {
+      <div class="connection-item" [class.active]="isActive(connection)"
+        (contextmenu)="onRightClick($event, connection)">
+        <div class="connection-header" (click)="selectConnection(connection)">
+          <div class="connection-info">
+            <!-- Arrow Icon -->
+            <div class="arrow-wrapper" [class.expanded]="isActive(connection)">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <path d="M9 18l6-6-6-6"></path>
+              </svg>
+            </div>
+            <div class="icon-wrapper">
+              <img [src]="getProviderIcon(connection.provider)" [alt]="connection.provider">
+            </div>
+            <span class="name">{{ connection.name }}</span>
+          </div>
+
+          <div class="connection-actions">
+            <button class="btn btn-ghost p-1 text-muted" (click)="refreshConnection($event, connection)"
+              title="Refresh">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+            <button class="btn btn-ghost p-1 text-muted" (click)="deleteConnection($event, connection.id)"
+              title="Delete">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        @if (isActive(connection)) {
+        <div class="connection-body">
+          <div class="connection-meta">
+            <div class="meta-item">{{ connection.host }}:{{ connection.port }}</div>
+            @if (connection.database) {
+            <div class="meta-item">{{ connection.database }}</div>
+            }
+          </div>
+
+          <div class="tree-explorer">
+            @if (isLoadingMetadata()) {
+            <div class="loading-skeleton">
+              <div class="skeleton-line skeleton"></div>
+              <div class="skeleton-line short skeleton"></div>
+              <div class="skeleton-line skeleton"></div>
+            </div>
+            } @else {
+            <app-object-explorer [sessionId]="sessionId()"
+              (nodeSelected)="onNodeSelected($event)"></app-object-explorer>
+            }
+          </div>
+        </div>
+        }
+      </div>
+      }
+
+      @if (connections().length === 0) {
+      <div class="empty-state">
+        <span class="icon">📂</span>
+        <p>No connections yet</p>
+        <button class="btn btn-primary w-full" (click)="onAddConnection()">
+          Add Connection
+        </button>
+      </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Context Menu -->
+@if (contextMenuVisible()) {
+<div class="context-menu-overlay" (click)="contextMenuVisible.set(false)">
+  <div class="context-menu" [style.left.px]="contextMenuX()" [style.top.px]="contextMenuY()"
+    (click)="$event.stopPropagation()">
+    <button class="context-menu-item" (click)="editConnection()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+      </svg>
+      Edit Connection
+    </button>
+    <button class="context-menu-item" (click)="refreshFromContextMenu()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+      Refresh
+    </button>
+    <div class="context-menu-divider"></div>
+    <button class="context-menu-item danger" (click)="deleteFromContextMenu()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+      </svg>
+      Delete Connection
+    </button>
+  </div>
+</div>
+}

@@ -1,0 +1,8 @@
+*.exe
+*.db
+*.out
+backend/sessions.db
+.vscode
+node_modules/
+dist/
+# Go

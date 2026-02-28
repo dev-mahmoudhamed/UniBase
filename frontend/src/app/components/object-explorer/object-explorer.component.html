@@ -1,0 +1,26 @@
+<div class="object-explorer" id="object-explorer-container">
+    @if (isLoading()) {
+    <div class="loading-state">
+        <div class="loading-skeleton">
+            <div class="skeleton-line skeleton"></div>
+            <div class="skeleton-line short skeleton"></div>
+            <div class="skeleton-line skeleton"></div>
+            <div class="skeleton-line short skeleton"></div>
+        </div>
+    </div>
+    } @else if (errorMessage()) {
+    <div class="error-state">
+        <i class="pi pi-exclamation-triangle"></i>
+        <span>{{ errorMessage() }}</span>
+    </div>
+    } @else if (treeNodes().length > 0) {
+    <p-tree [value]="treeNodes()" [loading]="false" [filter]="false" selectionMode="single"
+        (onNodeExpand)="onNodeExpand($event)" (onNodeSelect)="onNodeSelect($event)" [scrollHeight]="'100%'"
+        id="object-explorer-tree">
+    </p-tree>
+    } @else {
+    <div class="empty-state">
+        <span class="text-muted">No data loaded</span>
+    </div>
+    }
+</div>
