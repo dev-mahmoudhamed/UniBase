@@ -62,6 +62,9 @@ func main() {
 	r.POST("/redis/key/update", handlers.UpdateRedisKeyValue)
 	r.POST("/redis/key/delete", handlers.DeleteRedisKey)
 
+	// MongoDB document CRUD
+	r.POST("/mongo/document/update", handlers.UpdateMongoDocument)
+
 	// SPA fallback (Angular routing)
 	r.NoRoute(func(c *gin.Context) {
 		path := filepath.Join(distPath, c.Request.URL.Path)

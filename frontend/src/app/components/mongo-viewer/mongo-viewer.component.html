@@ -1,0 +1,169 @@
+<div class="mongo-viewer">
+
+    <!-- ── Empty state ─────────────────────────────────────────────────────── -->
+    @if (!collectionData()) {
+    <div class="viewer-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+        </svg>
+        <p>Select a collection to browse documents</p>
+        <span>Click on a collection in the sidebar explorer</span>
+    </div>
+
+    } @else {
+
+    <!-- ── Header ──────────────────────────────────────────────────────────── -->
+    <div class="viewer-header">
+        <div class="viewer-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+            </svg>
+            <span class="collection-name">{{ collectionData()!.collection }}</span>
+            <span class="db-chip">{{ collectionData()!.database }}</span>
+        </div>
+        <span class="doc-count">{{ collectionData()!.count }} document{{ collectionData()!.count !== 1 ? 's' : ''
+            }}</span>
+    </div>
+
+    <!-- ── Body: list + editor ─────────────────────────────────────────────── -->
+    <div class="viewer-body">
+
+        <!-- Left: Document list -->
+        <div class="doc-list-panel">
+            <div class="panel-heading">Documents</div>
+
+            @if (localDocuments().length === 0) {
+            <div class="list-empty">
+                <span>Collection is empty</span>
+            </div>
+            } @else {
+            <div class="doc-list">
+                @for (doc of localDocuments(); track $index) {
+                <div class="doc-item" [class.selected]="selectedDocIndex() === $index" (click)="selectDocument($index)">
+                    <div class="doc-index">{{ $index + 1 }}</div>
+                    <div class="doc-meta">
+                        <span class="doc-id">{{ getDocumentLabel(doc, $index) }}</span>
+                        <span class="doc-preview">{{ getDocumentPreview(doc) }}</span>
+                    </div>
+                    @if (selectedDocIndex() === $index && isDirty()) {
+                    <span class="dirty-dot" title="Unsaved changes"></span>
+                    }
+                </div>
+                }
+            </div>
+            }
+        </div>
+
+        <!-- Right: Editor -->
+        <div class="editor-panel">
+
+            @if (selectedDocIndex() === null) {
+            <!-- Select hint -->
+            <div class="select-hint">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                    <polyline points="13 2 13 9 20 9"></polyline>
+                </svg>
+                <p>Select a document to edit</p>
+                <span>Changes are sent as a delta — only modified fields are saved</span>
+            </div>
+
+            } @else {
+
+            <!-- Alerts -->
+            @if (errorMessage()) {
+            <div class="alert alert-error">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+                {{ errorMessage() }}
+            </div>
+            }
+            @if (successMessage()) {
+            <div class="alert alert-success">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                {{ successMessage() }}
+            </div>
+            }
+
+            <!-- Editor toolbar -->
+            <div class="editor-toolbar">
+                <div class="toolbar-left">
+                    @if (isDirty()) {
+                    <span class="changes-badge">
+                        ● {{ changedFieldCount() }} field{{ changedFieldCount() !== 1 ? 's' : '' }} changed
+                    </span>
+                    } @else {
+                    <span class="no-changes">No changes</span>
+                    }
+                    @if (!isValidJson() && editedJson()) {
+                    <span class="invalid-badge">⚠ Invalid JSON</span>
+                    }
+                </div>
+                <button class="btn-format" (click)="formatJson()" [disabled]="!isValidJson()"
+                    title="Format JSON (Ctrl+Shift+F)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 18 22 12 16 6"></polyline>
+                        <polyline points="8 6 2 12 8 18"></polyline>
+                    </svg>
+                    Format
+                </button>
+            </div>
+
+            <!-- Monaco editor -->
+            <div class="editor-wrapper">
+                <ngx-monaco-editor [options]="editorOptions" [ngModel]="editedJson()"
+                    (ngModelChange)="editedJson.set($event)" (onInit)="onEditorInit($event)">
+                </ngx-monaco-editor>
+            </div>
+
+            <!-- Footer actions -->
+            <div class="editor-footer">
+                <div class="footer-left">
+                    <button class="btn btn-save" (click)="saveChanges()"
+                        [disabled]="!isDirty() || isSaving() || !isValidJson()"
+                        title="Save changed fields only (Ctrl+S)">
+                        @if (isSaving()) {
+                        <span class="btn-spinner"></span>
+                        Saving…
+                        } @else {
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                            <polyline points="7 3 7 8 15 8"></polyline>
+                        </svg>
+                        Save Changes
+                        }
+                    </button>
+
+                    <button class="btn btn-reset" (click)="resetChanges()" [disabled]="!isDirty() || isSaving()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polyline points="1 4 1 10 7 10"></polyline>
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        </svg>
+                        Reset
+                    </button>
+                </div>
+
+                <div class="footer-right">
+                    <span class="shortcut-hint">Ctrl+S to save</span>
+                </div>
+            </div>
+
+            }
+        </div>
+    </div>
+
+    }
+</div>

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -252,7 +253,7 @@ func (m *MongoDBProvider) GetCollectionData(config models.ConnectionConfig, coll
 			return nil, fmt.Errorf("failed to decode document: %w", err)
 		}
 
-		// Convert ObjectID and other BSON types to strings for JSON serialization
+		// Convert ObjectID and other BSON types to JSON-friendly representations
 		sanitized := sanitizeBSONDocument(doc)
 		results = append(results, sanitized)
 	}
@@ -268,6 +269,59 @@ func (m *MongoDBProvider) GetCollectionData(config models.ConnectionConfig, coll
 	return results, nil
 }
 
+// UpdateDocument updates specific fields on a document identified by objectId.
+// Existing fields are updated; new fields are created. The _id field is never modified.
+func (m *MongoDBProvider) UpdateDocument(config models.ConnectionConfig, database, collection, objectID string, properties map[string]interface{}) error {
+	uri := m.buildConnectionURI(config)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+	if err != nil {
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	defer func() {
+		_ = client.Disconnect(ctx)
+	}()
+
+	// Build the filter — try ObjectID hex first, fall back to string
+	var filter bson.M
+	objID, err := primitive.ObjectIDFromHex(objectID)
+	if err == nil {
+		filter = bson.M{"_id": objID}
+	} else {
+		filter = bson.M{"_id": objectID}
+	}
+
+	// Ensure _id is never overwritten
+	delete(properties, "_id")
+
+	if len(properties) == 0 {
+		return fmt.Errorf("no properties to update")
+	}
+
+	// Build $set document from the provided properties
+	setFields := bson.M{}
+	for k, v := range properties {
+		setFields[k] = v
+	}
+
+	result, err := client.Database(database).Collection(collection).UpdateOne(
+		ctx,
+		filter,
+		bson.M{"$set": setFields},
+	)
+	if err != nil {
+		return fmt.Errorf("update failed: %w", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("document not found (objectId: %s)", objectID)
+	}
+
+	return nil
+}
+
 // sanitizeBSONDocument converts BSON-specific types to JSON-friendly representations
 func sanitizeBSONDocument(doc map[string]interface{}) map[string]interface{} {
 	result := make(map[string]interface{})
@@ -279,6 +333,11 @@ func sanitizeBSONDocument(doc map[string]interface{}) map[string]interface{} {
 
 func sanitizeBSONValue(value interface{}) interface{} {
 	switch v := value.(type) {
+	case primitive.ObjectID:
+		// Return the clean hex string so it can be used directly as objectId
+		return v.Hex()
+	case primitive.DateTime:
+		return v.Time().UTC().Format(time.RFC3339)
 	case map[string]interface{}:
 		return sanitizeBSONDocument(v)
 	case []interface{}:
@@ -288,7 +347,6 @@ func sanitizeBSONValue(value interface{}) interface{} {
 		}
 		return sanitized
 	default:
-		// For BSON types like ObjectID, Date, etc. — convert to string
 		return fmt.Sprintf("%v", v)
 	}
 }

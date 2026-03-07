@@ -1,7 +1,7 @@
 import { Component, inject, input, output, signal, HostListener } from '@angular/core';
 import { ConnectionService } from '../../services/connection.service';
 import { ProviderService } from '../../services/provider.service';
-import { ExplorerService } from '../../services/explorer.service';
+import { ExplorerService, MongoCollectionData } from '../../services/explorer.service';
 import { DatabaseConnection, DatabaseProvider } from '../../models/database.model';
 import { ObjectExplorerComponent } from '../object-explorer/object-explorer.component';
 
@@ -20,7 +20,7 @@ export class SidebarComponent {
   toggleSidebar = output<void>();
   openConnectionDialog = output<void>();
   editConnectionEvent = output<DatabaseConnection>();
-  collectionSelected = output<any>();
+  collectionSelected = output<MongoCollectionData>();
   redisKeySelected = output<{ database: string; key: string }>();
   isCollapsed = input(false);
 
@@ -37,8 +37,6 @@ export class SidebarComponent {
   contextMenuX = signal(0);
   contextMenuY = signal(0);
   contextMenuConnection = signal<DatabaseConnection | null>(null);
-
-
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -159,12 +157,28 @@ export class SidebarComponent {
         });
       }
 
+      // context contains { database, collection } from the explorer node data
+      const database = context['database'] || '';
+
       this.explorerService.getCollectionData(sessionId, node.label || '', context).subscribe({
         next: (data: any) => {
-          this.collectionSelected.emit(data);
+          // Attach the database so the viewer can use it for updates
+          const enriched: MongoCollectionData = {
+            collection: data.collection ?? node.label ?? '',
+            database,
+            documents: data.documents ?? [],
+            count: data.count ?? 0
+          };
+          this.collectionSelected.emit(enriched);
         },
         error: (err: any) => {
-          this.collectionSelected.emit({ error: err?.error?.error || 'Failed to fetch collection data' });
+          this.collectionSelected.emit({
+            collection: node.label ?? '',
+            database,
+            documents: [],
+            count: 0
+          });
+          console.error('Failed to fetch collection data', err);
         }
       });
     }
