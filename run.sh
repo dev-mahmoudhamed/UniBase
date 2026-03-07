@@ -1,8 +1,13 @@
 #!/bin/bash
 set -e # Exit immediately if a command fails
 
+echo "--- Installing Frontend Dependencies ---"
+cd frontend
+npm install
+
 echo "--- Building Angular Frontend ---"
-cd frontend && ng build --configuration production
+ng build --configuration production
 
 echo "--- Starting Go Backend ---"
-cd ../backend && go run main.go
+cd ../backend
+go run main.go
