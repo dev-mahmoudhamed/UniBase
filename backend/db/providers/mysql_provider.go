@@ -282,10 +282,11 @@ func (m *MySQLProvider) myGetTableIndexNodes(db *sql.DB, ctx map[string]string) 
 
 		var keyName, indexType string
 		for i, col := range cols {
-			if col == "Key_name" {
+			switch col {
+			case "Key_name":
 				val := vals[i].(*sql.RawBytes)
 				keyName = string(*val)
-			} else if col == "Index_type" {
+			case "Index_type":
 				val := vals[i].(*sql.RawBytes)
 				indexType = string(*val)
 			}

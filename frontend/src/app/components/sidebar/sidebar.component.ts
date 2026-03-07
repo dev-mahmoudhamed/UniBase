@@ -1,4 +1,4 @@
-import { Component, inject, output, signal, HostListener } from '@angular/core';
+import { Component, inject, input, output, signal, HostListener } from '@angular/core';
 import { ConnectionService } from '../../services/connection.service';
 import { ProviderService } from '../../services/provider.service';
 import { ExplorerService } from '../../services/explorer.service';
@@ -21,6 +21,8 @@ export class SidebarComponent {
   openConnectionDialog = output<void>();
   editConnectionEvent = output<DatabaseConnection>();
   collectionSelected = output<any>();
+  redisKeySelected = output<{ database: string; key: string }>();
+  isCollapsed = input(false);
 
   // Signals
   connections = this.connectionService.connections;
@@ -45,6 +47,10 @@ export class SidebarComponent {
 
   onAddConnection(): void {
     this.openConnectionDialog.emit();
+  }
+
+  onToggleSidebar(): void {
+    this.toggleSidebar.emit();
   }
 
   selectConnection(connection: DatabaseConnection): void {
@@ -73,6 +79,10 @@ export class SidebarComponent {
 
   isMongo(connection: DatabaseConnection): boolean {
     return connection.provider === DatabaseProvider.MONGODB;
+  }
+
+  isRedis(connection: DatabaseConnection): boolean {
+    return connection.provider === DatabaseProvider.REDIS;
   }
 
   getProviderIcon(provider: string): string {
@@ -113,16 +123,29 @@ export class SidebarComponent {
     this.contextMenuVisible.set(false);
   }
 
-  // Handle collection click from object explorer (for MongoDB)
+  // Handle node click from object explorer
   onNodeSelected(event: any): void {
     const node = event.node;
     if (!node) return;
 
     const connection = this.activeConnection();
-    if (!connection || connection.provider !== DatabaseProvider.MONGODB) return;
+    if (!connection) return;
 
-    // Check if it's a collection node (leaf node or collection type)
     const nodeType = node.data?.nodeType || node.type;
+
+    // Redis key selected
+    if (connection.provider === DatabaseProvider.REDIS && nodeType === 'key') {
+      const database = node.data?.database || '0';
+      const key = node.data?.key;
+      if (key) {
+        this.redisKeySelected.emit({ database, key });
+      }
+      return;
+    }
+
+    // MongoDB collection selected
+    if (connection.provider !== DatabaseProvider.MONGODB) return;
+
     if (nodeType === 'collection' || nodeType === 'table') {
       const sessionId = this.sessionId();
       if (!sessionId) return;
@@ -136,7 +159,6 @@ export class SidebarComponent {
         });
       }
 
-      // Fetch collection data
       this.explorerService.getCollectionData(sessionId, node.label || '', context).subscribe({
         next: (data: any) => {
           this.collectionSelected.emit(data);

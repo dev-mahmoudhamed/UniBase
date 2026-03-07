@@ -6,3 +6,5 @@ backend/sessions.db
 node_modules/
 dist/
 # Go
+populate_redis.ps1
+UniBase.code-workspace

@@ -220,13 +220,14 @@ func (r *RedisProvider) GetExplorerChildren(config models.ConnectionConfig, node
 			// type of key
 			kType := client.Type(mctx, k).Val()
 			icon := "pi pi-key"
-			if kType == "hash" {
+			switch kType {
+			case "hash":
 				icon = "pi pi-list"
-			} else if kType == "list" {
+			case "list":
 				icon = "pi pi-bars"
-			} else if kType == "set" {
+			case "set":
 				icon = "pi pi-chart-pie"
-			} else if kType == "zset" {
+			case "zset":
 				icon = "pi pi-chart-bar"
 			}
 
@@ -243,4 +244,135 @@ func (r *RedisProvider) GetExplorerChildren(config models.ConnectionConfig, node
 	default:
 		return []models.ExplorerNode{}, nil
 	}
+}
+
+// GetKeyValue retrieves the value of a Redis key depending on its type
+func (r *RedisProvider) GetKeyValue(config models.ConnectionConfig, key string) (*models.RedisKeyValueResponse, error) {
+	client := r.buildClient(config)
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Check key type
+	kType, err := client.Type(ctx, key).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get key type: %w", err)
+	}
+
+	// Get TTL
+	ttl, err := client.TTL(ctx, key).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get TTL: %w", err)
+	}
+	ttlSeconds := int64(ttl.Seconds())
+	switch ttl {
+	case -1: // No expiry
+		ttlSeconds = -1
+	case -2: // Key does not exist
+		ttlSeconds = -2
+	}
+
+	var value string
+	switch kType {
+	case "string":
+		value, err = client.Get(ctx, key).Result()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get string value: %w", err)
+		}
+	case "list":
+		items, err := client.LRange(ctx, key, 0, -1).Result()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get list value: %w", err)
+		}
+		jsonBytes, _ := json.Marshal(items)
+		value = string(jsonBytes)
+	case "set":
+		items, err := client.SMembers(ctx, key).Result()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get set value: %w", err)
+		}
+		jsonBytes, _ := json.Marshal(items)
+		value = string(jsonBytes)
+	case "zset":
+		items, err := client.ZRangeWithScores(ctx, key, 0, -1).Result()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get zset value: %w", err)
+		}
+		type zsetEntry struct {
+			Member string  `json:"member"`
+			Score  float64 `json:"score"`
+		}
+		var entries []zsetEntry
+		for _, item := range items {
+			entries = append(entries, zsetEntry{
+				Member: fmt.Sprintf("%v", item.Member),
+				Score:  item.Score,
+			})
+		}
+		jsonBytes, _ := json.Marshal(entries)
+		value = string(jsonBytes)
+	case "hash":
+		items, err := client.HGetAll(ctx, key).Result()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get hash value: %w", err)
+		}
+		jsonBytes, _ := json.Marshal(items)
+		value = string(jsonBytes)
+	default:
+		value = fmt.Sprintf("(unsupported type: %s)", kType)
+	}
+
+	return &models.RedisKeyValueResponse{
+		Key:      key,
+		Value:    value,
+		Type:     kType,
+		TTL:      ttlSeconds,
+		Database: config.Database,
+	}, nil
+}
+
+// SetKeyValue updates a Redis key's value (string type) and optionally renames it
+func (r *RedisProvider) SetKeyValue(config models.ConnectionConfig, oldKey, newKey, value string, ttl int64) error {
+	client := r.buildClient(config)
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Set the new value on the old key first
+	if err := client.Set(ctx, oldKey, value, 0).Err(); err != nil {
+		return fmt.Errorf("failed to set value: %w", err)
+	}
+
+	// Rename key if needed
+	if oldKey != newKey && newKey != "" {
+		if err := client.Rename(ctx, oldKey, newKey).Err(); err != nil {
+			return fmt.Errorf("failed to rename key: %w", err)
+		}
+	}
+
+	// Set TTL
+	finalKey := newKey
+	if finalKey == "" {
+		finalKey = oldKey
+	}
+	if ttl > 0 {
+		client.Expire(ctx, finalKey, time.Duration(ttl)*time.Second)
+	} else if ttl == -1 {
+		client.Persist(ctx, finalKey)
+	}
+
+	return nil
+}
+
+// DeleteKey removes a Redis key
+func (r *RedisProvider) DeleteKey(config models.ConnectionConfig, key string) error {
+	client := r.buildClient(config)
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	return client.Del(ctx, key).Err()
 }

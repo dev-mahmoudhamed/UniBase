@@ -57,6 +57,11 @@ func main() {
 	r.POST("/explorer/children", handlers.GetExplorerChildren)
 	r.POST("/explorer/collection-data", handlers.GetCollectionData)
 
+	// Redis key CRUD
+	r.POST("/redis/key/get", handlers.GetRedisKeyValue)
+	r.POST("/redis/key/update", handlers.UpdateRedisKeyValue)
+	r.POST("/redis/key/delete", handlers.DeleteRedisKey)
+
 	// SPA fallback (Angular routing)
 	r.NoRoute(func(c *gin.Context) {
 		path := filepath.Join(distPath, c.Request.URL.Path)

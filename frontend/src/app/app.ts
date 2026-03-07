@@ -8,6 +8,7 @@ import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { QueryEditorComponent } from './components/query-editor/query-editor.component';
 import { ResultsViewerComponent } from './components/results-viewer/results-viewer.component';
 import { ConnectionDialogComponent } from './components/connection-dialog/connection-dialog.component';
+import { RedisViewerComponent } from './components/redis-viewer/redis-viewer.component';
 import { QueryService } from './services/query.service';
 import { ConnectionService } from './services/connection.service';
 import { DatabaseConnection, DatabaseProvider, QueryResult, QueryError } from './models/database.model';
@@ -22,18 +23,22 @@ import { DatabaseConnection, DatabaseProvider, QueryResult, QueryError } from '.
     SidebarComponent,
     QueryEditorComponent,
     ResultsViewerComponent,
-    ConnectionDialogComponent
+    ConnectionDialogComponent,
+    RedisViewerComponent
   ],
   templateUrl: './app.html',
   styleUrls: ['./app.scss']
 })
 export class AppComponent {
   sidebarCollapsed = signal(false);
+  readonly SIDEBAR_WIDTH = '260px';
+  readonly SIDEBAR_COLLAPSED_WIDTH = '44px';
   showConnectionDialog = signal(false);
   editingConnection = signal<DatabaseConnection | null>(null);
   queryResult = signal<QueryResult | QueryError | null>(null);
   isLoadingQuery = signal(false);
   jsonViewerData = signal<string>('');
+  selectedRedisKey = signal<{ database: string; key: string } | null>(null);
 
   private queryService = inject(QueryService);
   private connectionService = inject(ConnectionService);
@@ -41,6 +46,11 @@ export class AppComponent {
   isMongoConnection = computed(() => {
     const conn = this.connectionService.activeConnection();
     return conn?.provider === DatabaseProvider.MONGODB;
+  });
+
+  isRedisConnection = computed(() => {
+    const conn = this.connectionService.activeConnection();
+    return conn?.provider === DatabaseProvider.REDIS;
   });
 
   jsonEditorOptions = {
@@ -100,6 +110,10 @@ export class AppComponent {
     } catch {
       this.jsonViewerData.set('// Error parsing collection data');
     }
+  }
+
+  onRedisKeySelected(event: { database: string; key: string }): void {
+    this.selectedRedisKey.set({ ...event });
   }
 
   onJsonEditorInit(editor: any): void {

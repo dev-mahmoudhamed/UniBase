@@ -3,6 +3,81 @@
   height: 100%;
   overflow: visible;
 
+  .explorer-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    margin-bottom: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+
+    &:focus-within {
+      border-color: var(--accent-primary);
+      background: rgba(124, 58, 237, 0.04);
+      box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.08);
+    }
+
+    .search-icon {
+      color: var(--text-muted);
+      flex-shrink: 0;
+      opacity: 0.6;
+    }
+
+    .search-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 2px 0;
+      min-width: 0;
+      box-shadow: none;
+
+      &::placeholder {
+        color: var(--text-muted);
+        opacity: 0.5;
+      }
+
+      &:focus {
+        box-shadow: none;
+      }
+    }
+
+    .search-clear {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border: none;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      color: var(--text-muted);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+      padding: 0;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: var(--text-primary);
+      }
+    }
+  }
+
+  .no-results {
+    padding: 12px 0;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
   // PrimeNG Tree overrides for dark theme integration
   ::ng-deep {
     .p-tree {
