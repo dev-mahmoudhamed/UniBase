@@ -23,9 +23,12 @@ export class ObjectExplorerComponent {
     treeNodes = computed(() => {
         const nodes = this.allTreeNodes();
         const query = this.searchQuery().trim().toLowerCase();
-        const sorted = this.sortNodesInPlace(nodes);
-        if (!query) return sorted;
-        return this.filterNodes(sorted, query);
+
+        // Process nodes: only sort children of 'database' nodes
+        const processed = this.processAndSortNodes(nodes, false);
+
+        if (!query) return processed;
+        return this.filterNodes(processed, query);
     });
 
     private explorerService = inject(ExplorerService);
@@ -42,18 +45,27 @@ export class ObjectExplorerComponent {
     }
 
     /**
-     * Sorts nodes alphabetically WITHOUT cloning them.
-     * Returns a new sorted array whose elements are the same object references
-     * so mutations made by PrimeNG (e.g. node.expanded, node.children) survive.
+     * Processes nodes WITHOUT cloning them, and ONLY sorts children
+     * if the parent node is of type 'database'.
      */
-    private sortNodesInPlace(nodes: TreeNode[]): TreeNode[] {
-        const sorted = [...nodes].sort((a, b) => (a.label || '').localeCompare(b.label || ''));
-        for (const node of sorted) {
+    private processAndSortNodes(nodes: TreeNode[], shouldSort: boolean): TreeNode[] {
+        let result = [...nodes];
+
+        // Only sort if instructed (i.e. we are processing children of a 'database' node)
+        if (shouldSort) {
+            result.sort((a, b) => (a.label || '').localeCompare(b.label || ''));
+        }
+
+        for (const node of result) {
             if (node.children && node.children.length > 0) {
-                node.children = this.sortNodesInPlace(node.children);
+                // If THIS node is a 'database', sort its children. 
+                // We do NOT pass 'shouldSort' down further unless we want deep sorting, 
+                // but usually clicking a database returns immediate children.
+                const sortChildren = node.type === 'database';
+                node.children = this.processAndSortNodes(node.children, sortChildren);
             }
         }
-        return sorted;
+        return result;
     }
 
     private filterNodes(nodes: TreeNode[], query: string): TreeNode[] {
