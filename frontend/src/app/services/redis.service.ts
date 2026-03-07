@@ -23,7 +23,7 @@ export interface RedisKeyUpdateRequest {
     providedIn: 'root'
 })
 export class RedisService {
-    private baseUrl = '/redis';
+    private baseUrl = '/api/redis';
 
     constructor(private http: HttpClient) { }
 

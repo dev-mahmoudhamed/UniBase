@@ -7,8 +7,8 @@ import { DatabaseConnection, QueryResult, QueryError, ConnectionResponse, Execut
     providedIn: 'root'
 })
 export class QueryService {
-    private connectionBaseUrl = '/connection';
-    private queryBaseUrl = '/query';
+    private connectionBaseUrl = '/api/connection';
+    private queryBaseUrl = '/api/query';
 
     constructor(private http: HttpClient) { }
 
@@ -27,5 +27,4 @@ export class QueryService {
             query
         });
     }
-
 }

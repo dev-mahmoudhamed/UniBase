@@ -42,14 +42,9 @@ export interface ConnectionResponse {
     message?: string;
     status: string;
     session_id?: string;
-    metadata?: DatabaseMetadata;
+    metadata?: any;
 }
 
-export interface DatabaseMetadata {
-    [key: string]: any;
-}
-
-// New provider metadata models
 export interface ProviderMetadata {
     id: string;
     name: string;

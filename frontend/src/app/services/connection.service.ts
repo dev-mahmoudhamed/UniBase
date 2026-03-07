@@ -1,5 +1,5 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
-import { DatabaseConnection, DatabaseMetadata } from '../models/database.model';
+import { DatabaseConnection } from '../models/database.model';
 import { QueryService } from './query.service';
 import { firstValueFrom } from 'rxjs';
 
@@ -12,13 +12,11 @@ export class ConnectionService {
     private connectionsSignal = signal<DatabaseConnection[]>([]);
     private activeConnectionSignal = signal<DatabaseConnection | null>(null);
     private sessionIdSignal = signal<string | null>(sessionStorage.getItem('db_session_id'));
-    private metadataSignal = signal<DatabaseMetadata | null>(null);
     private isLoadingMetadataSignal = signal<boolean>(false);
 
     connections = computed(() => this.connectionsSignal());
     activeConnection = computed(() => this.activeConnectionSignal());
     sessionId = computed(() => this.sessionIdSignal());
-    metadata = computed(() => this.metadataSignal());
     isLoadingMetadata = computed(() => this.isLoadingMetadataSignal());
 
     constructor() {
@@ -29,9 +27,7 @@ export class ConnectionService {
         const stored = localStorage.getItem('db_connections');
         if (stored) {
             try {
-                const connections = JSON.parse(stored);
-
-                this.connectionsSignal.set(connections);
+                this.connectionsSignal.set(JSON.parse(stored));
             } catch (e) {
                 console.error('Failed to load connections', e);
             }
@@ -70,29 +66,20 @@ export class ConnectionService {
             this.isLoadingMetadataSignal.set(true);
             try {
                 const response = await firstValueFrom(this.queryService.initializeConnection(connection));
-                if (response) {
-                    if (response.session_id) {
-                        this.sessionIdSignal.set(response.session_id);
-                        sessionStorage.setItem('db_session_id', response.session_id);
-                    }
-                    if (response.metadata) {
-                        this.metadataSignal.set(response.metadata);
-                    }
+                if (response?.session_id) {
+                    this.sessionIdSignal.set(response.session_id);
+                    sessionStorage.setItem('db_session_id', response.session_id);
                 }
             } catch (error) {
                 console.error('Failed to initialize connection session', error);
-
-                // Clear session on error
                 this.sessionIdSignal.set(null);
                 sessionStorage.removeItem('db_session_id');
-                this.metadataSignal.set(null);
             } finally {
                 this.isLoadingMetadataSignal.set(false);
             }
         } else {
             this.sessionIdSignal.set(null);
             sessionStorage.removeItem('db_session_id');
-            this.metadataSignal.set(null);
         }
     }
 

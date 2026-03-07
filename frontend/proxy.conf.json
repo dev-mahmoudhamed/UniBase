@@ -1,35 +1,5 @@
 {
-  "/connection": {
-    "target": "http://localhost:5000",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug"
-  },
-  "/query": {
-    "target": "http://localhost:5000",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug"
-  },
   "/api": {
-    "target": "http://localhost:5000",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug"
-  },
-  "/explorer": {
-    "target": "http://localhost:5000",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug"
-  },
-  "/redis": {
-    "target": "http://localhost:5000",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug"
-  },
-  "/mongo": {
     "target": "http://localhost:5000",
     "secure": false,
     "changeOrigin": true,

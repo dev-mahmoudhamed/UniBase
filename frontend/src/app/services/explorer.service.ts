@@ -41,8 +41,8 @@ export interface MongoCollectionData {
     providedIn: 'root'
 })
 export class ExplorerService {
-    private baseUrl = '/explorer';
-    private mongoBaseUrl = '/mongo';
+    private baseUrl = '/api/explorer';
+    private mongoBaseUrl = '/api/mongo';
 
     constructor(private http: HttpClient) { }
 
@@ -72,11 +72,6 @@ export class ExplorerService {
         });
     }
 
-    /**
-     * Sends only the changed/new field key-value pairs for a single document.
-     * The backend uses $set, so untouched fields are preserved.
-     * New keys will be created if they don't exist on the document.
-     */
     updateMongoDocument(
         sessionId: string,
         database: string,
