@@ -2,7 +2,6 @@ package providers
 
 import "db-server/models"
 
-// DatabaseProvider defines the interface for database operations
 type DatabaseProvider interface {
 	TestConnection(config models.ConnectionConfig) error
 	InitializeConnection(config models.ConnectionConfig) (string, interface{}, error)
@@ -10,7 +9,6 @@ type DatabaseProvider interface {
 	GetExplorerChildren(config models.ConnectionConfig, nodeType string, context map[string]string) ([]models.ExplorerNode, error)
 }
 
-// CollectionDataProvider is an optional interface for providers that support fetching collection/document data (e.g. MongoDB)
 type CollectionDataProvider interface {
 	GetCollectionData(config models.ConnectionConfig, collectionName string, context map[string]string) ([]map[string]interface{}, error)
 }

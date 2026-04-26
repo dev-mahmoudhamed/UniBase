@@ -17,7 +17,6 @@ func GetExplorerChildren(c *gin.Context) {
 		return
 	}
 
-	// Get session config to find provider and connection details
 	config, err := utils.GetSession(req.SessionID)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
@@ -39,7 +38,6 @@ func GetExplorerChildren(c *gin.Context) {
 	c.JSON(http.StatusOK, models.ExplorerNodeResponse{Nodes: nodes})
 }
 
-// GetCollectionData handles requests to fetch document data from a collection (MongoDB)
 func GetCollectionData(c *gin.Context) {
 	var req models.CollectionDataRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

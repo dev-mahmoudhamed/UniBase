@@ -13,14 +13,12 @@ import (
 )
 
 func main() {
-	// Initialize provider registry
 	reg := registry.GetRegistry()
 	if err := reg.LoadFromFile("./config/providers.json"); err != nil {
 		log.Fatalf("Failed to load provider registry: %v", err)
 	}
 	log.Printf("Loaded %d database providers", len(reg.GetSupportedProviderIDs()))
 
-	// Initialize database components
 	session.InitSessionStore()
 	cache.InitQueryCache()
 
@@ -40,42 +38,35 @@ func main() {
 	distPath := "../frontend/dist/frontend/browser"
 	indexFile := filepath.Join(distPath, "index.html")
 
-	// Static assets
 	r.Static("/assets", filepath.Join(distPath, "assets"))
 	r.StaticFile("/favicon.ico", filepath.Join(distPath, "favicon.ico"))
 
-	// ── API routes ────────────────────────────────────────────────────────────
 	api := r.Group("/api")
 	{
-		// Providers — database provider metadata & validation
 		providers := api.Group("/providers")
 		{
 			providers.GET("", handlers.GetProviders)
-			providers.GET("/:id", handlers.GetProviderByID)
-			providers.POST("/validate", handlers.ValidateProviderConfig)
+			// providers.GET("/:id", handlers.GetProviderByID)
+			// providers.POST("/validate", handlers.ValidateProviderConfig)
 		}
 
-		// Connection — test & initialize database connections
 		connection := api.Group("/connection")
 		{
 			connection.POST("/test", handlers.TestConnection)
 			connection.POST("/initialize", handlers.InitializeConnection)
 		}
 
-		// Query — execute SQL / NoSQL queries
-		query := api.Group("/query")
-		{
-			query.POST("/execute", handlers.ExecuteQuery)
-		}
-
-		// Explorer — lazy-load the object explorer tree
 		explorer := api.Group("/explorer")
 		{
 			explorer.POST("/children", handlers.GetExplorerChildren)
 			explorer.POST("/collection-data", handlers.GetCollectionData)
 		}
 
-		// Redis — key-level CRUD operations
+		query := api.Group("/query")
+		{
+			query.POST("/execute", handlers.ExecuteQuery)
+		}
+
 		redis := api.Group("/redis")
 		{
 			redis.POST("/key/get", handlers.GetRedisKeyValue)
@@ -83,14 +74,12 @@ func main() {
 			redis.POST("/key/delete", handlers.DeleteRedisKey)
 		}
 
-		// MongoDB — document-level operations
 		mongo := api.Group("/mongo")
 		{
 			mongo.POST("/document/update", handlers.UpdateMongoDocument)
 		}
 	}
 
-	// SPA fallback — must come last so Angular routing works
 	r.NoRoute(func(c *gin.Context) {
 		path := filepath.Join(distPath, c.Request.URL.Path)
 		if _, err := os.Stat(path); err == nil {

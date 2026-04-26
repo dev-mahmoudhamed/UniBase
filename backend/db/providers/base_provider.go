@@ -127,6 +127,7 @@ func (s *SQLServerProvider) BuildExplorerTree(db *sql.DB, scripts map[string]str
 
 	return string(finalJson), nil
 }
+
 func (b *BaseProvider) ExecuteScript(db *sql.DB, script string) (string, error) {
 	var result string
 	err := db.QueryRow(script).Scan(&result)

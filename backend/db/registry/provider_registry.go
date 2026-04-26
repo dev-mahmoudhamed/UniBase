@@ -125,7 +125,6 @@ func (r *ProviderRegistry) GetSupportedProviderIDs() []string {
 	return ids
 }
 
-// ValidateConnection validates connection config against provider metadata
 func (r *ProviderRegistry) ValidateConnection(providerID string, config map[string]interface{}) []string {
 	provider, err := r.GetProvider(providerID)
 	if err != nil {

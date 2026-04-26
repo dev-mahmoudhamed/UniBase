@@ -9,12 +9,10 @@ import { ProviderMetadata, ProvidersResponse } from '../models/database.model';
 export class ProviderService {
     private baseUrl = '/api/providers';
 
-    // Signals for reactive state
     private providersSignal = signal<ProviderMetadata[]>([]);
     private loadingSignal = signal<boolean>(false);
     private versionSignal = signal<string>('');
 
-    // Public readonly signals
     providers = this.providersSignal.asReadonly();
     isLoading = this.loadingSignal.asReadonly();
     version = this.versionSignal.asReadonly();
@@ -32,12 +30,10 @@ export class ProviderService {
         );
     }
 
-    // Get a specific provider by ID
     getProviderById(id: string): Observable<ProviderMetadata> {
         return this.http.get<ProviderMetadata>(`${this.baseUrl}/${id}`);
     }
 
-    // Validate provider configuration
     validateConfig(providerId: string, config: any): Observable<{ valid: boolean; errors?: string[] }> {
         return this.http.post<{ valid: boolean; errors?: string[] }>(
             `${this.baseUrl}/validate`,
@@ -45,23 +41,19 @@ export class ProviderService {
         );
     }
 
-    // Get provider from local cache (signal)
     getProvider(id: string): ProviderMetadata | undefined {
         return this.providersSignal().find(p => p.id === id);
     }
 
-    // Get provider icon
     getProviderIcon(id: string): string {
         const provider = this.getProvider(id);
         return provider?.icon || '';
     }
 
-    // Get available provider IDs
     getAvailableProviderIds(): string[] {
         return this.providersSignal().map(p => p.id);
     }
 
-    // Check if provider is supported
     isProviderSupported(id: string): boolean {
         return this.providersSignal().some(p => p.id === id);
     }

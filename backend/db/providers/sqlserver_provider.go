@@ -4,11 +4,10 @@ import (
 	"database/sql"
 	"db-server/db/utils"
 	"db-server/models"
-	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
+	"time"
 
 	_ "github.com/denisenkom/go-mssqldb"
 )
@@ -20,9 +19,9 @@ const (
 
 type SQLServerProvider struct {
 	BaseProvider
+	db *sql.DB
 }
 
-// buildConnectionURL creates a SQL Server connection URL
 func (s *SQLServerProvider) buildConnectionURL(config models.ConnectionConfig) string {
 	query := url.Values{}
 	query.Add("database", config.Database)
@@ -56,22 +55,17 @@ func (s *SQLServerProvider) TestConnection(config models.ConnectionConfig) error
 func (s *SQLServerProvider) InitializeConnection(config models.ConnectionConfig) (string, interface{}, error) {
 	connURL := s.buildConnectionURL(config)
 
-	db, err := s.OpenAndValidate(sqlServerDriver, connURL)
+	db, err := sql.Open(sqlServerDriver, connURL)
 	if err != nil {
 		return "", nil, err
 	}
-	defer db.Close()
 
-	scriptContent, err := os.ReadFile(sqlServerScriptPath)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to read script: %w", err)
-	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(time.Hour)
 
-	// Parse sections
-	scripts := ParseScriptSections(string(scriptContent))
-	// Build explorer tree step by step
-	treeResult, err := s.BuildExplorerTree(db, scripts)
-	if err != nil {
+	s.db = db
+	if err := db.Ping(); err != nil {
 		return "", nil, err
 	}
 
@@ -80,7 +74,7 @@ func (s *SQLServerProvider) InitializeConnection(config models.ConnectionConfig)
 		return "", nil, err
 	}
 
-	return sessionID, json.RawMessage(treeResult), nil
+	return sessionID, map[string]interface{}{}, nil
 }
 
 func (s *SQLServerProvider) ExecuteQuery(config models.ConnectionConfig, query string) (models.QueryResult, error) {
@@ -95,7 +89,6 @@ func (s *SQLServerProvider) ExecuteQuery(config models.ConnectionConfig, query s
 	return utils.ExecuteDynamicQuery(db, query)
 }
 
-// GetExplorerChildren returns child nodes for the SQL Server object explorer tree
 func (s *SQLServerProvider) GetExplorerChildren(config models.ConnectionConfig, nodeType string, ctx map[string]string) ([]models.ExplorerNode, error) {
 	connURL := s.buildConnectionURL(config)
 

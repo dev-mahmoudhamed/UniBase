@@ -1,6 +1,5 @@
 <div class="app-container">
   <as-split direction="horizontal" [gutterSize]="4" unit="pixel">
-    <!-- Sidebar: resizable when expanded, fixed to 44px when collapsed -->
     <as-split-area [size]="sidebarCollapsed() ? 44 : 260" [minSize]="sidebarCollapsed() ? 44 : 150"
       [maxSize]="sidebarCollapsed() ? 44 : 600">
 
@@ -10,19 +9,15 @@
       </app-sidebar>
     </as-split-area>
 
-    <!-- Main content area takes remaining space -->
     <as-split-area size="*">
       <div class="main-content">
         @if (isRedisConnection()) {
-        <!-- Redis Key Viewer/Editor Mode -->
         <app-redis-viewer [selectedKey]="selectedRedisKey()"></app-redis-viewer>
 
         } @else if (isMongoConnection()) {
-        <!-- MongoDB Document Editor Mode -->
         <app-mongo-viewer [collectionData]="selectedCollectionData()"></app-mongo-viewer>
 
         } @else {
-        <!-- Standard SQL Mode -->
         <as-split direction="vertical" [gutterSize]="4">
           <as-split-area [size]="60" [minSize]="20">
             <app-query-editor (executeQuery)="executeQuery($event)"></app-query-editor>

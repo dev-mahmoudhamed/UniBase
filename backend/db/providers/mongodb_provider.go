@@ -334,7 +334,6 @@ func sanitizeBSONDocument(doc map[string]interface{}) map[string]interface{} {
 func sanitizeBSONValue(value interface{}) interface{} {
 	switch v := value.(type) {
 	case primitive.ObjectID:
-		// Return the clean hex string so it can be used directly as objectId
 		return v.Hex()
 	case primitive.DateTime:
 		return v.Time().UTC().Format(time.RFC3339)
@@ -346,6 +345,12 @@ func sanitizeBSONValue(value interface{}) interface{} {
 			sanitized[i] = sanitizeBSONValue(item)
 		}
 		return sanitized
+	case bool:
+		return v
+	case int32, int64, float64:
+		return v
+	case nil:
+		return nil
 	default:
 		return fmt.Sprintf("%v", v)
 	}

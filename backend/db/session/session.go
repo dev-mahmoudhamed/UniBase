@@ -28,11 +28,10 @@ const (
 
 var (
 	sessionDB     *sql.DB
-	sessionPWDMap = make(map[string]string) // SessionID (as string) -> Password
+	sessionPWDMap = make(map[string]string)
 	mapMutex      sync.RWMutex
 )
 
-// InitSessionStore initializes the session database
 func InitSessionStore() {
 	var err error
 	sessionDB, err = sql.Open("sqlite3", sessionDBPath)
@@ -52,7 +51,6 @@ func InitSessionStore() {
 	}
 }
 
-// generateSessionID creates a unique session ID from connection config
 func generateSessionID(config models.ConnectionConfig) string {
 	h := fnv.New64a()
 	h.Write([]byte(config.Provider))
@@ -69,7 +67,6 @@ func generateSessionID(config models.ConnectionConfig) string {
 	return strconv.FormatInt(id, 10)
 }
 
-// StoreSession saves session to SQLite (no pass) and Map (pass)
 func StoreSession(config models.ConnectionConfig) (string, error) {
 	sessionID := generateSessionID(config)
 

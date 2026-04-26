@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// GetProvider returns the appropriate database provider based on the provider string
 func GetProvider(provider string) (DatabaseProvider, error) {
 	switch strings.ToLower(provider) {
 	case "postgresql", "postgres":

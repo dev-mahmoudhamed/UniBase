@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 
 import { ConnectionService } from '../../services/connection.service';
 import { ProviderService } from '../../services/provider.service';
-import { DatabaseConnection, ProviderMetadata, ConnectionField } from '../../models/database.model';
+import { DatabaseConnection } from '../../models/database.model';
 import { QueryService } from '../../services/query.service';
 import { finalize } from 'rxjs/operators';
 
@@ -21,11 +21,9 @@ export class ConnectionDialogComponent implements OnInit {
 
     @Output() close = new EventEmitter<void>();
 
-    // Input for editing an existing connection
     editConnection = input<DatabaseConnection | null>(null);
     isEditMode = computed(() => !!this.editConnection());
 
-    // Signals
     selectedProviderId = signal<string>('');
     connection = signal<Partial<DatabaseConnection>>({});
     errors = signal<string[]>([]);
@@ -35,7 +33,6 @@ export class ConnectionDialogComponent implements OnInit {
         success: null
     });
 
-    // Computed values from provider service
     providers = this.providerService.providers;
     selectedProvider = computed(() => {
         const id = this.selectedProviderId();
@@ -49,11 +46,9 @@ export class ConnectionDialogComponent implements OnInit {
     ngOnInit(): void {
         const editing = this.editConnection();
         if (editing) {
-            // Edit mode: pre-populate with existing connection data
             this.selectedProviderId.set(editing.provider);
             this.connection.set({ ...editing });
         } else {
-            // New connection mode
             const availableProviders = this.providers();
             if (availableProviders.length > 0) {
                 this.selectedProviderId.set(availableProviders[0].id);
@@ -70,7 +65,6 @@ export class ConnectionDialogComponent implements OnInit {
             provider: provider.id as any
         };
 
-        // Set default values from provider metadata
         provider.fields.forEach(field => {
             if (field.defaultValue !== undefined) {
                 (initialConnection as any)[field.key] = field.defaultValue;
@@ -148,14 +142,12 @@ export class ConnectionDialogComponent implements OnInit {
                     }
                     const editing = this.editConnection();
                     if (editing) {
-                        // Update mode
                         const updatedConnection: DatabaseConnection = {
                             ...connectionData,
                             id: editing.id,
                         };
                         this.connectionService.updateConnection(updatedConnection);
                     } else {
-                        // New connection mode
                         const newConnection: DatabaseConnection = {
                             ...connectionData,
                             id: response.session_id || this.generateId()
@@ -202,7 +194,6 @@ export class ConnectionDialogComponent implements OnInit {
         return `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
 
-    // Helper for template
     getFieldValue(key: string): any {
         return (this.connection() as any)[key];
     }
