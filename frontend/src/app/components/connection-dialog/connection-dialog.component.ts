@@ -126,13 +126,42 @@ export class ConnectionDialogComponent implements OnInit {
             return;
         }
 
-        const connectionData: DatabaseConnection = {
-            ...this.connection() as DatabaseConnection,
+        const editing = this.editConnection();
+        const connectionData = { ...this.connection() };
+
+        if (!editing) {
+            const existingConnections = this.connectionService.connections();
+            const provider = this.selectedProvider();
+
+            if (provider) {
+                const isDuplicate = existingConnections.some(existingConn => {
+                    if (existingConn.provider !== this.selectedProviderId()) return false;
+                    // Exclude 'name' — it's a display label, not a connection setting
+                    return provider.fields.filter(f => f.key !== 'name').every(field => {
+                        const newVal = (connectionData as any)[field.key];
+                        const oldVal = (existingConn as any)[field.key];
+                        return newVal == oldVal;
+                    });
+                });
+
+                if (isDuplicate) {
+                    this.testStatus.set({
+                        loading: false,
+                        message: 'Connection with same data already exist just try to reconnect',
+                        success: false
+                    });
+                    return;
+                }
+            }
+        }
+
+        const fullConnectionData: DatabaseConnection = {
+            ...connectionData as DatabaseConnection,
             id: 'init_temp',
             provider: this.selectedProviderId() as any
         };
 
-        this.queryService.initializeConnection(connectionData)
+        this.queryService.initializeConnection(fullConnectionData)
             .pipe(finalize(() => this.testStatus.update(s => ({ ...s, loading: false }))))
             .subscribe({
                 next: (response) => {
@@ -140,16 +169,15 @@ export class ConnectionDialogComponent implements OnInit {
                         this.testStatus.set({ loading: false, message: 'No response from server', success: false });
                         return;
                     }
-                    const editing = this.editConnection();
                     if (editing) {
                         const updatedConnection: DatabaseConnection = {
-                            ...connectionData,
+                            ...fullConnectionData,
                             id: editing.id,
                         };
                         this.connectionService.updateConnection(updatedConnection);
                     } else {
                         const newConnection: DatabaseConnection = {
-                            ...connectionData,
+                            ...fullConnectionData,
                             id: response.session_id || this.generateId()
                         };
                         this.connectionService.addConnection(newConnection);

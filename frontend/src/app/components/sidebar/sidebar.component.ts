@@ -105,6 +105,18 @@ export class SidebarComponent {
     this.contextMenuVisible.set(false);
   }
 
+  renameConnection(): void {
+    const conn = this.contextMenuConnection();
+    if (conn) {
+      const newName = prompt('Enter new name:', conn.name);
+      if (newName !== null && newName.trim() !== '') {
+        const updatedConn = { ...conn, name: newName.trim() };
+        this.connectionService.updateConnection(updatedConn);
+      }
+    }
+    this.contextMenuVisible.set(false);
+  }
+
   deleteFromContextMenu(): void {
     const conn = this.contextMenuConnection();
     if (conn && confirm('Are you sure you want to delete this connection?')) {

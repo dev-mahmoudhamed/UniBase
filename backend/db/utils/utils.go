@@ -5,58 +5,116 @@ import (
 	"db-server/db/session"
 	"db-server/models"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 )
 
-func ExecuteDynamicQuery(db *sql.DB, query string) (models.QueryResult, error) {
-	startTime := time.Now()
-	rows, err := db.Query(query)
+// goBatchSplitter matches a standalone GO statement on its own line (case-insensitive)
+var goBatchSplitter = regexp.MustCompile(`(?im)^\s*GO\s*$`)
+
+// SplitSQLBatches splits a SQL script on GO batch separators, trimming empty batches.
+func SplitSQLBatches(script string) []string {
+	parts := goBatchSplitter.Split(script, -1)
+	batches := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			batches = append(batches, t)
+		}
+	}
+	return batches
+}
+
+// executeBatch runs a single SQL batch and captures the last result set that has columns.
+func executeBatch(db *sql.DB, batch string, finalColumns *[]string, finalResults *[]map[string]interface{}) error {
+	rows, err := db.Query(batch)
 	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("query execution failed: %w", err)
+		return fmt.Errorf("query execution failed: %w", err)
 	}
 	defer rows.Close()
 
-	columns, err := rows.Columns()
-	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("failed to get columns: %w", err)
-	}
+	for {
+		columns, colErr := rows.Columns()
+		if colErr == nil && len(columns) > 0 {
+			*finalColumns = columns
+			results := []map[string]interface{}{}
 
-	results := []map[string]interface{}{}
+			values := make([]interface{}, len(columns))
+			pointers := make([]interface{}, len(columns))
+			for i := range values {
+				pointers[i] = &values[i]
+			}
 
-	values := make([]interface{}, len(columns))
-	pointers := make([]interface{}, len(columns))
-	for i := range values {
-		pointers[i] = &values[i]
-	}
+			for rows.Next() {
+				if scanErr := rows.Scan(pointers...); scanErr != nil {
+					return fmt.Errorf("failed to scan row: %w", scanErr)
+				}
 
-	for rows.Next() {
-		if err := rows.Scan(pointers...); err != nil {
-			return models.QueryResult{}, fmt.Errorf("failed to scan row: %w", err)
-		}
+				result := make(map[string]interface{})
+				for i, colName := range columns {
+					val := values[i]
+					if b, ok := val.([]byte); ok {
+						result[colName] = string(b)
+					} else {
+						result[colName] = val
+					}
+				}
+				results = append(results, result)
+			}
 
-		result := make(map[string]interface{})
-		for i, colName := range columns {
-			val := values[i]
-			// Handle []uint8 (byte slice) which is common for strings in some drivers
-			if b, ok := val.([]byte); ok {
-				result[colName] = string(b)
-			} else {
-				result[colName] = val
+			if rowErr := rows.Err(); rowErr != nil {
+				return fmt.Errorf("rows iteration error: %w", rowErr)
+			}
+
+			*finalResults = results
+		} else {
+			// Drain rows for batches that return no columns (USE, CREATE, etc.)
+			for rows.Next() {
 			}
 		}
-		results = append(results, result)
+
+		if !rows.NextResultSet() {
+			break
+		}
 	}
 
-	if err := rows.Err(); err != nil {
-		return models.QueryResult{}, fmt.Errorf("rows iteration error: %w", err)
+	return nil
+}
+
+// ExecuteDynamicQuery splits the query on GO batch separators and executes each
+// batch independently, which is required by SQL Server for DDL statements like
+// CREATE TRIGGER, CREATE PROCEDURE, etc.
+func ExecuteDynamicQuery(db *sql.DB, query string) (models.QueryResult, error) {
+	startTime := time.Now()
+
+	batches := SplitSQLBatches(query)
+	// If there are no GO separators, treat the whole query as one batch.
+	if len(batches) == 0 {
+		batches = []string{query}
+	}
+
+	var finalColumns []string
+	var finalResults []map[string]interface{}
+
+	for _, batch := range batches {
+		if err := executeBatch(db, batch, &finalColumns, &finalResults); err != nil {
+			return models.QueryResult{}, err
+		}
 	}
 
 	executionTime := time.Since(startTime).Milliseconds()
 
+	if finalColumns == nil {
+		finalColumns = []string{}
+	}
+	if finalResults == nil {
+		finalResults = []map[string]interface{}{}
+	}
+
 	return models.QueryResult{
-		Columns:       columns,
-		Rows:          results,
-		RowCount:      len(results),
+		Columns:       finalColumns,
+		Rows:          finalResults,
+		RowCount:      len(finalResults),
 		ExecutionTime: executionTime,
 	}, nil
 }
