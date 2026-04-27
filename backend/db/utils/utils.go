@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"database/sql"
 	"db-server/db/session"
 	"db-server/models"
@@ -26,8 +27,8 @@ func SplitSQLBatches(script string) []string {
 }
 
 // executeBatch runs a single SQL batch and captures the last result set that has columns.
-func executeBatch(db *sql.DB, batch string, finalColumns *[]string, finalResults *[]map[string]interface{}) error {
-	rows, err := db.Query(batch)
+func executeBatch(conn *sql.Conn, ctx context.Context, batch string, finalColumns *[]string, finalResults *[]map[string]interface{}) error {
+	rows, err := conn.QueryContext(ctx, batch)
 	if err != nil {
 		return fmt.Errorf("query execution failed: %w", err)
 	}
@@ -96,8 +97,15 @@ func ExecuteDynamicQuery(db *sql.DB, query string) (models.QueryResult, error) {
 	var finalColumns []string
 	var finalResults []map[string]interface{}
 
+	ctx := context.Background()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return models.QueryResult{}, fmt.Errorf("failed to acquire connection for query execution: %w", err)
+	}
+	defer conn.Close()
+
 	for _, batch := range batches {
-		if err := executeBatch(db, batch, &finalColumns, &finalResults); err != nil {
+		if err := executeBatch(conn, ctx, batch, &finalColumns, &finalResults); err != nil {
 			return models.QueryResult{}, err
 		}
 	}

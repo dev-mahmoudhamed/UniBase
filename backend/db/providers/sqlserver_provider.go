@@ -121,6 +121,30 @@ func (s *SQLServerProvider) GetExplorerChildren(config models.ConnectionConfig, 
 		return s.getProcedureNodes(db, ctx)
 	case "databaseTriggers":
 		return s.getDatabaseTriggerNodes(db, ctx)
+	case "tableConstraints":
+		return s.getTableConstraintNodes(db, ctx)
+	case "tableTriggers":
+		return s.getTableTriggerNodes(db, ctx)
+	case "tableStatistics":
+		return s.getTableStatisticNodes(db, ctx)
+	case "functions":
+		return s.getFunctionChildFolders(ctx)
+	case "tableValuedFunctions":
+		return s.getTableValuedFunctionNodes(db, ctx)
+	case "scalarValuedFunctions":
+		return s.getScalarValuedFunctionNodes(db, ctx)
+	case "security":
+		return s.getSecurityChildFolders(ctx)
+	case "dbUsers":
+		return s.getDbUserNodes(db, ctx)
+	case "dbRoles":
+		return s.getDbRoleChildFolders(ctx)
+	case "databaseRoles":
+		return s.getDatabaseRoleNodes(db, ctx)
+	case "applicationRoles":
+		return s.getApplicationRoleNodes(db, ctx)
+	case "dbSchemas":
+		return s.getDbSchemaNodes(db, ctx)
 	case "serverRoles":
 		return s.getServerRoleNodes(db)
 	case "logins":
@@ -179,7 +203,9 @@ func (s *SQLServerProvider) getDatabaseChildFolders(ctx map[string]string) ([]mo
 		{Key: "tables:" + dbName, Label: "Tables", Type: "tables", Icon: "pi pi-table", Leaf: false, Data: map[string]string{"database": dbName}},
 		{Key: "views:" + dbName, Label: "Views", Type: "views", Icon: "pi pi-eye", Leaf: false, Data: map[string]string{"database": dbName}},
 		{Key: "procedures:" + dbName, Label: "Stored Procedures", Type: "procedures", Icon: "pi pi-code", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "triggers:" + dbName, Label: "Triggers", Type: "databaseTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "triggers:" + dbName, Label: "Database Triggers", Type: "databaseTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "functions:" + dbName, Label: "Functions", Type: "functions", Icon: "pi pi-code", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "security:" + dbName, Label: "Security", Type: "security", Icon: "pi pi-shield", Leaf: false, Data: map[string]string{"database": dbName}},
 	}, nil
 }
 
@@ -222,6 +248,9 @@ func (s *SQLServerProvider) getTableChildFolders(ctx map[string]string) ([]model
 		{Key: fmt.Sprintf("columns:%s:%s.%s", dbName, schemaName, tableName), Label: "Columns", Type: "tableColumns", Icon: "pi pi-bars", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
 		{Key: fmt.Sprintf("keys:%s:%s.%s", dbName, schemaName, tableName), Label: "Keys", Type: "tableKeys", Icon: "pi pi-key", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
 		{Key: fmt.Sprintf("indexes:%s:%s.%s", dbName, schemaName, tableName), Label: "Indexes", Type: "tableIndexes", Icon: "pi pi-sitemap", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
+		{Key: fmt.Sprintf("constraints:%s:%s.%s", dbName, schemaName, tableName), Label: "Constraints", Type: "tableConstraints", Icon: "pi pi-lock", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
+		{Key: fmt.Sprintf("triggers:%s:%s.%s", dbName, schemaName, tableName), Label: "Triggers", Type: "tableTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
+		{Key: fmt.Sprintf("statistics:%s:%s.%s", dbName, schemaName, tableName), Label: "Statistics", Type: "tableStatistics", Icon: "pi pi-chart-bar", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
 	}, nil
 }
 
@@ -496,6 +525,268 @@ func (s *SQLServerProvider) getServerLogNodes(db *sql.DB) ([]models.ExplorerNode
 		{Key: "log:1", Label: "Archive #1 - ERRORLOG.1", Type: "log", Icon: "pi pi-file", Leaf: true},
 		{Key: "log:2", Label: "Archive #2 - ERRORLOG.2", Type: "log", Icon: "pi pi-file", Leaf: true},
 	}, nil
+}
+
+func (s *SQLServerProvider) getTableConstraintNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := fmt.Sprintf(`USE [%s];
+	          SELECT name, type_desc FROM sys.objects 
+	          WHERE parent_object_id = @p1 AND type IN ('C', 'D', 'F', 'PK', 'UQ') ORDER BY name`, ctx["database"])
+	rows, err := db.Query(query, ctx["objectId"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to query constraints: %w", err)
+	}
+	defer rows.Close()
+
+	nodes := make([]models.ExplorerNode, 0)
+	for rows.Next() {
+		var name, typeDesc string
+		if err := rows.Scan(&name, &typeDesc); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("constraint:%s:%s:%s", ctx["database"], ctx["table"], name),
+			Label: fmt.Sprintf("%s (%s)", name, typeDesc),
+			Type:  "constraint",
+			Icon:  "pi pi-lock",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (s *SQLServerProvider) getTableTriggerNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := fmt.Sprintf(`USE [%s];
+	          SELECT name FROM sys.triggers WHERE parent_id = @p1 ORDER BY name`, ctx["database"])
+	rows, err := db.Query(query, ctx["objectId"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to query table triggers: %w", err)
+	}
+	defer rows.Close()
+
+	nodes := make([]models.ExplorerNode, 0)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("tbtrigger:%s:%s:%s", ctx["database"], ctx["table"], name),
+			Label: name,
+			Type:  "trigger",
+			Icon:  "pi pi-bolt",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (s *SQLServerProvider) getTableStatisticNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := fmt.Sprintf(`USE [%s];
+	          SELECT name FROM sys.stats WHERE object_id = @p1 ORDER BY name`, ctx["database"])
+	rows, err := db.Query(query, ctx["objectId"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to query statistics: %w", err)
+	}
+	defer rows.Close()
+
+	nodes := make([]models.ExplorerNode, 0)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("stat:%s:%s:%s", ctx["database"], ctx["table"], name),
+			Label: name,
+			Type:  "statistic",
+			Icon:  "pi pi-chart-bar",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (s *SQLServerProvider) getFunctionChildFolders(ctx map[string]string) ([]models.ExplorerNode, error) {
+	dbName := ctx["database"]
+	return []models.ExplorerNode{
+		{Key: "tf:" + dbName, Label: "Table-valued Functions", Type: "tableValuedFunctions", Icon: "pi pi-table", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "sf:" + dbName, Label: "Scalar-valued Functions", Type: "scalarValuedFunctions", Icon: "pi pi-code", Leaf: false, Data: map[string]string{"database": dbName}},
+	}, nil
+}
+
+func (s *SQLServerProvider) getTableValuedFunctionNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := fmt.Sprintf(`USE [%s];
+	          SELECT SCHEMA_NAME(schema_id) AS schema_name, name FROM sys.objects WHERE type IN ('TF', 'IF', 'FT') AND is_ms_shipped = 0 ORDER BY name`, ctx["database"])
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query table-valued functions: %w", err)
+	}
+	defer rows.Close()
+
+	nodes := make([]models.ExplorerNode, 0)
+	for rows.Next() {
+		var schemaName, name string
+		if err := rows.Scan(&schemaName, &name); err != nil {
+			continue
+		}
+		fullName := schemaName + "." + name
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("tf:%s:%s", ctx["database"], fullName),
+			Label: fullName,
+			Type:  "function",
+			Icon:  "pi pi-table",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (s *SQLServerProvider) getScalarValuedFunctionNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := fmt.Sprintf(`USE [%s];
+	          SELECT SCHEMA_NAME(schema_id) AS schema_name, name FROM sys.objects WHERE type IN ('FN', 'FS') AND is_ms_shipped = 0 ORDER BY name`, ctx["database"])
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query scalar-valued functions: %w", err)
+	}
+	defer rows.Close()
+
+	nodes := make([]models.ExplorerNode, 0)
+	for rows.Next() {
+		var schemaName, name string
+		if err := rows.Scan(&schemaName, &name); err != nil {
+			continue
+		}
+		fullName := schemaName + "." + name
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("sf:%s:%s", ctx["database"], fullName),
+			Label: fullName,
+			Type:  "function",
+			Icon:  "pi pi-code",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (s *SQLServerProvider) getSecurityChildFolders(ctx map[string]string) ([]models.ExplorerNode, error) {
+	dbName := ctx["database"]
+	return []models.ExplorerNode{
+		{Key: "users:" + dbName, Label: "Users", Type: "dbUsers", Icon: "pi pi-users", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "roles:" + dbName, Label: "Roles", Type: "dbRoles", Icon: "pi pi-users", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "schemas:" + dbName, Label: "Schemas", Type: "dbSchemas", Icon: "pi pi-folder", Leaf: false, Data: map[string]string{"database": dbName}},
+	}, nil
+}
+
+func (s *SQLServerProvider) getDbUserNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := fmt.Sprintf(`USE [%s];
+	          SELECT name, type_desc FROM sys.database_principals WHERE type IN ('S', 'U', 'G') AND principal_id > 4 ORDER BY name`, ctx["database"])
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query users: %w", err)
+	}
+	defer rows.Close()
+
+	nodes := make([]models.ExplorerNode, 0)
+	for rows.Next() {
+		var name, typeDesc string
+		if err := rows.Scan(&name, &typeDesc); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("dbuser:%s:%s", ctx["database"], name),
+			Label: fmt.Sprintf("%s (%s)", name, typeDesc),
+			Type:  "user",
+			Icon:  "pi pi-user",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (s *SQLServerProvider) getDbRoleChildFolders(ctx map[string]string) ([]models.ExplorerNode, error) {
+	dbName := ctx["database"]
+	return []models.ExplorerNode{
+		{Key: "dbRoles:" + dbName, Label: "Database Roles", Type: "databaseRoles", Icon: "pi pi-shield", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "appRoles:" + dbName, Label: "Application Roles", Type: "applicationRoles", Icon: "pi pi-shield", Leaf: false, Data: map[string]string{"database": dbName}},
+	}, nil
+}
+
+func (s *SQLServerProvider) getDatabaseRoleNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := fmt.Sprintf(`USE [%s];
+	          SELECT name FROM sys.database_principals WHERE type = 'R' AND principal_id > 0 ORDER BY name`, ctx["database"])
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query database roles: %w", err)
+	}
+	defer rows.Close()
+
+	nodes := make([]models.ExplorerNode, 0)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("dbrole:%s:%s", ctx["database"], name),
+			Label: name,
+			Type:  "role",
+			Icon:  "pi pi-shield",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (s *SQLServerProvider) getApplicationRoleNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := fmt.Sprintf(`USE [%s];
+	          SELECT name FROM sys.database_principals WHERE type = 'A' ORDER BY name`, ctx["database"])
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query application roles: %w", err)
+	}
+	defer rows.Close()
+
+	nodes := make([]models.ExplorerNode, 0)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("approle:%s:%s", ctx["database"], name),
+			Label: name,
+			Type:  "role",
+			Icon:  "pi pi-shield",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (s *SQLServerProvider) getDbSchemaNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := fmt.Sprintf(`USE [%s];
+	          SELECT name FROM sys.schemas ORDER BY name`, ctx["database"])
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query schemas: %w", err)
+	}
+	defer rows.Close()
+
+	nodes := make([]models.ExplorerNode, 0)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("schema:%s:%s", ctx["database"], name),
+			Label: name,
+			Type:  "schema",
+			Icon:  "pi pi-folder",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
 }
 
 func ParseScriptSections(content string) map[string]string {
