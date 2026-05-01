@@ -1,4 +1,4 @@
-import { Component, inject, model, output } from '@angular/core';
+import { Component, effect, inject, input, model, output } from '@angular/core';
 import { hashQueryId } from '../../utils/hash.utils';
 
 import { FormsModule } from '@angular/forms';
@@ -14,11 +14,12 @@ import { ConnectionService } from '../../services/connection.service';
 })
 export class QueryEditorComponent {
     private connectionService = inject(ConnectionService);
+    language = input<string>('sql');
     executeQuery = output<{ query: string; queryId: string; sessionId: string }>();
 
     editorOptions = {
         theme: 'unibase-dark',
-        language: 'sql',
+        language: this.language(),
         minimap: { enabled: false, scale: 1, side: 'right' },
         fontSize: 13,
         fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace",
@@ -51,6 +52,13 @@ export class QueryEditorComponent {
             horizontalScrollbarSize: 10
         }
     };
+
+    constructor() {
+        effect(() => {
+            const lang = this.language();
+            this.editorOptions = { ...this.editorOptions, language: lang };
+        });
+    }
 
     queryText = model('');
     activeConnection = this.connectionService.activeConnection;

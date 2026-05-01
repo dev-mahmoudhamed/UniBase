@@ -35,6 +35,11 @@
     <p-tree [value]="treeNodes()" [loading]="false" [filter]="false" selectionMode="single"
         (onNodeExpand)="onNodeExpand($event)" (onNodeSelect)="onNodeSelect($event)" [scrollHeight]="'100%'"
         id="object-explorer-tree">
+        <ng-template pTemplate="default" let-node>
+            <span [pTooltip]="getMongoTooltip(node)" tooltipPosition="right" [escape]="false" class="tree-node-label">
+                {{node.label}}
+            </span>
+        </ng-template>
     </p-tree>
     @if (searchQuery() && treeNodes().length === 0) {
     <div class="no-results">

@@ -14,13 +14,12 @@
         @if (isRedisConnection()) {
         <app-redis-viewer [selectedKey]="selectedRedisKey()"></app-redis-viewer>
 
-        } @else if (isMongoConnection()) {
-        <app-mongo-viewer [collectionData]="selectedCollectionData()"></app-mongo-viewer>
-
         } @else {
         <as-split direction="vertical" [gutterSize]="4">
           <as-split-area [size]="60" [minSize]="20">
-            <app-query-editor (executeQuery)="executeQuery($event)"></app-query-editor>
+            <app-query-editor [queryText]="currentQueryText()" (queryTextChange)="currentQueryText.set($event)"
+              [language]="currentLanguage()" (executeQuery)="executeQuery($event)">
+            </app-query-editor>
           </as-split-area>
           <as-split-area [size]="40" [minSize]="20">
             <app-results-viewer [result]="queryResult()" [isLoading]="isLoadingQuery()">

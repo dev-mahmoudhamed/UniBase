@@ -162,7 +162,7 @@ func (m *MySQLProvider) myGetDatabaseNodes(db *sql.DB) ([]models.ExplorerNode, e
 			Type:  "database",
 			Icon:  "pi pi-database",
 			Leaf:  false,
-			Data:  map[string]string{"database": name},
+			Data:  map[string]interface{}{"database": name},
 		}
 
 		if name == "information_schema" || name == "mysql" || name == "performance_schema" || name == "sys" {
@@ -191,12 +191,12 @@ func (m *MySQLProvider) myGetDatabaseNodes(db *sql.DB) ([]models.ExplorerNode, e
 func (m *MySQLProvider) myGetDatabaseChildFolders(ctx map[string]string) ([]models.ExplorerNode, error) {
 	dbName := ctx["database"]
 	return []models.ExplorerNode{
-		{Key: "tables:" + dbName, Label: "Tables", Type: "tables", Icon: "pi pi-table", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "views:" + dbName, Label: "Views", Type: "views", Icon: "pi pi-eye", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "functions:" + dbName, Label: "Functions", Type: "functions", Icon: "pi pi-code", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "procedures:" + dbName, Label: "Procedures", Type: "procedures", Icon: "pi pi-cog", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "triggers:" + dbName, Label: "Triggers", Type: "databaseTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "events:" + dbName, Label: "Events", Type: "events", Icon: "pi pi-calendar", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "tables:" + dbName, Label: "Tables", Type: "tables", Icon: "pi pi-table", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "views:" + dbName, Label: "Views", Type: "views", Icon: "pi pi-eye", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "functions:" + dbName, Label: "Functions", Type: "functions", Icon: "pi pi-code", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "procedures:" + dbName, Label: "Procedures", Type: "procedures", Icon: "pi pi-cog", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "triggers:" + dbName, Label: "Triggers", Type: "databaseTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "events:" + dbName, Label: "Events", Type: "events", Icon: "pi pi-calendar", Leaf: false, Data: map[string]interface{}{"database": dbName}},
 	}, nil
 }
 
@@ -220,7 +220,7 @@ func (m *MySQLProvider) myGetTableNodes(db *sql.DB, ctx map[string]string) ([]mo
 			Type:  "table",
 			Icon:  "pi pi-table",
 			Leaf:  false,
-			Data:  map[string]string{"database": ctx["database"], "table": name},
+			Data:  map[string]interface{}{"database": ctx["database"], "table": name},
 		})
 	}
 	return nodes, nil
@@ -230,11 +230,11 @@ func (m *MySQLProvider) myGetTableChildFolders(ctx map[string]string) ([]models.
 	dbName := ctx["database"]
 	table := ctx["table"]
 	return []models.ExplorerNode{
-		{Key: fmt.Sprintf("columns:%s:%s", dbName, table), Label: "Columns", Type: "tableColumns", Icon: "pi pi-list", Leaf: false, Data: map[string]string{"database": dbName, "table": table}},
-		{Key: fmt.Sprintf("keys:%s:%s", dbName, table), Label: "Keys", Type: "tableKeys", Icon: "pi pi-key", Leaf: false, Data: map[string]string{"database": dbName, "table": table}},
-		{Key: fmt.Sprintf("constraints:%s:%s", dbName, table), Label: "Constraints", Type: "tableConstraints", Icon: "pi pi-lock", Leaf: false, Data: map[string]string{"database": dbName, "table": table}},
-		{Key: fmt.Sprintf("indexes:%s:%s", dbName, table), Label: "Indexes", Type: "tableIndexes", Icon: "pi pi-sort-alt", Leaf: false, Data: map[string]string{"database": dbName, "table": table}},
-		{Key: fmt.Sprintf("triggers:%s:%s", dbName, table), Label: "Triggers", Type: "tableTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"database": dbName, "table": table}},
+		{Key: fmt.Sprintf("columns:%s:%s", dbName, table), Label: "Columns", Type: "tableColumns", Icon: "pi pi-list", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": table}},
+		{Key: fmt.Sprintf("keys:%s:%s", dbName, table), Label: "Keys", Type: "tableKeys", Icon: "pi pi-key", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": table}},
+		{Key: fmt.Sprintf("constraints:%s:%s", dbName, table), Label: "Constraints", Type: "tableConstraints", Icon: "pi pi-lock", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": table}},
+		{Key: fmt.Sprintf("indexes:%s:%s", dbName, table), Label: "Indexes", Type: "tableIndexes", Icon: "pi pi-sort-alt", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": table}},
+		{Key: fmt.Sprintf("triggers:%s:%s", dbName, table), Label: "Triggers", Type: "tableTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": table}},
 	}, nil
 }
 

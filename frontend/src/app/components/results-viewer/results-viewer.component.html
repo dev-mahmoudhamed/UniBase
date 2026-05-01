@@ -61,8 +61,8 @@
                 <div *cdkVirtualFor="let row of $any(result()).rows; let even = even; trackBy: rowTrackBy"
                     class="table-row" [class.even]="even" [class.compact]="isCompact()">
                     @for (column of $any(result()).columns; track column) {
-                    <div class="table-cell" [class.compact]="isCompact()" [title]="row[column]">
-                        {{ row[column] !== null && row[column] !== undefined ? row[column] : 'NULL' }}
+                    <div class="table-cell" [class.compact]="isCompact()" [title]="formatValue(row[column])">
+                        {{ formatValue(row[column]) }}
                     </div>
                     }
                 </div>

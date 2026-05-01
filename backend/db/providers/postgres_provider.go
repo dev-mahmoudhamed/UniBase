@@ -174,7 +174,7 @@ func (p *PostgresProvider) pgGetDatabaseNodes(db *sql.DB) ([]models.ExplorerNode
 			Type:  "database",
 			Icon:  "pi pi-database",
 			Leaf:  false,
-			Data:  map[string]string{"database": name},
+			Data:  map[string]interface{}{"database": name},
 		}
 
 		if isTemplate || name == "postgres" || name == "rdsadmin" || name == "azure_maintenance" || name == "azure_sys" {
@@ -224,7 +224,7 @@ func (p *PostgresProvider) pgGetSchemaNodes(db *sql.DB) ([]models.ExplorerNode, 
 			Type:  "schema",
 			Icon:  "pi pi-folder",
 			Leaf:  false,
-			Data:  map[string]string{"schema": name},
+			Data:  map[string]interface{}{"schema": name},
 		})
 	}
 	return nodes, nil
@@ -233,11 +233,11 @@ func (p *PostgresProvider) pgGetSchemaNodes(db *sql.DB) ([]models.ExplorerNode, 
 func (p *PostgresProvider) pgGetSchemaChildFolders(ctx map[string]string) ([]models.ExplorerNode, error) {
 	schema := ctx["schema"]
 	return []models.ExplorerNode{
-		{Key: "tables:" + schema, Label: "Tables", Type: "tables", Icon: "pi pi-table", Leaf: false, Data: map[string]string{"schema": schema}},
-		{Key: "views:" + schema, Label: "Views", Type: "views", Icon: "pi pi-eye", Leaf: false, Data: map[string]string{"schema": schema}},
-		{Key: "functions:" + schema, Label: "Functions", Type: "functions", Icon: "pi pi-code", Leaf: false, Data: map[string]string{"schema": schema}},
-		{Key: "procedures:" + schema, Label: "Procedures", Type: "procedures", Icon: "pi pi-cog", Leaf: false, Data: map[string]string{"schema": schema}},
-		{Key: "schemaTriggers:" + schema, Label: "Triggers", Type: "schemaTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"schema": schema}},
+		{Key: "tables:" + schema, Label: "Tables", Type: "tables", Icon: "pi pi-table", Leaf: false, Data: map[string]interface{}{"schema": schema}},
+		{Key: "views:" + schema, Label: "Views", Type: "views", Icon: "pi pi-eye", Leaf: false, Data: map[string]interface{}{"schema": schema}},
+		{Key: "functions:" + schema, Label: "Functions", Type: "functions", Icon: "pi pi-code", Leaf: false, Data: map[string]interface{}{"schema": schema}},
+		{Key: "procedures:" + schema, Label: "Procedures", Type: "procedures", Icon: "pi pi-cog", Leaf: false, Data: map[string]interface{}{"schema": schema}},
+		{Key: "schemaTriggers:" + schema, Label: "Triggers", Type: "schemaTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]interface{}{"schema": schema}},
 	}, nil
 }
 
@@ -264,7 +264,7 @@ func (p *PostgresProvider) pgGetTableNodes(db *sql.DB, ctx map[string]string) ([
 			Type:  "table",
 			Icon:  "pi pi-table",
 			Leaf:  false,
-			Data:  map[string]string{"schema": ctx["schema"], "table": name},
+			Data:  map[string]interface{}{"schema": ctx["schema"], "table": name},
 		})
 	}
 	return nodes, nil
@@ -274,11 +274,11 @@ func (p *PostgresProvider) pgGetTableChildFolders(ctx map[string]string) ([]mode
 	schema := ctx["schema"]
 	table := ctx["table"]
 	return []models.ExplorerNode{
-		{Key: fmt.Sprintf("columns:%s:%s", schema, table), Label: "Columns", Type: "tableColumns", Icon: "pi pi-list", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
-		{Key: fmt.Sprintf("keys:%s:%s", schema, table), Label: "Keys", Type: "tableKeys", Icon: "pi pi-key", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
-		{Key: fmt.Sprintf("constraints:%s:%s", schema, table), Label: "Constraints", Type: "tableConstraints", Icon: "pi pi-lock", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
-		{Key: fmt.Sprintf("indexes:%s:%s", schema, table), Label: "Indexes", Type: "tableIndexes", Icon: "pi pi-sort-alt", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
-		{Key: fmt.Sprintf("triggers:%s:%s", schema, table), Label: "Triggers", Type: "tableTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
+		{Key: fmt.Sprintf("columns:%s:%s", schema, table), Label: "Columns", Type: "tableColumns", Icon: "pi pi-list", Leaf: false, Data: map[string]interface{}{"schema": schema, "table": table}},
+		{Key: fmt.Sprintf("keys:%s:%s", schema, table), Label: "Keys", Type: "tableKeys", Icon: "pi pi-key", Leaf: false, Data: map[string]interface{}{"schema": schema, "table": table}},
+		{Key: fmt.Sprintf("constraints:%s:%s", schema, table), Label: "Constraints", Type: "tableConstraints", Icon: "pi pi-lock", Leaf: false, Data: map[string]interface{}{"schema": schema, "table": table}},
+		{Key: fmt.Sprintf("indexes:%s:%s", schema, table), Label: "Indexes", Type: "tableIndexes", Icon: "pi pi-sort-alt", Leaf: false, Data: map[string]interface{}{"schema": schema, "table": table}},
+		{Key: fmt.Sprintf("triggers:%s:%s", schema, table), Label: "Triggers", Type: "tableTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]interface{}{"schema": schema, "table": table}},
 	}, nil
 }
 

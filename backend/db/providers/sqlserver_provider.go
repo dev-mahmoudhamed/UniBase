@@ -190,7 +190,7 @@ func (s *SQLServerProvider) getDatabaseNodes(db *sql.DB) ([]models.ExplorerNode,
 			Type:  "database",
 			Icon:  "pi pi-database",
 			Leaf:  false,
-			Data:  map[string]string{"database": name},
+			Data:  map[string]interface{}{"database": name},
 		})
 	}
 
@@ -200,12 +200,12 @@ func (s *SQLServerProvider) getDatabaseNodes(db *sql.DB) ([]models.ExplorerNode,
 func (s *SQLServerProvider) getDatabaseChildFolders(ctx map[string]string) ([]models.ExplorerNode, error) {
 	dbName := ctx["database"]
 	return []models.ExplorerNode{
-		{Key: "tables:" + dbName, Label: "Tables", Type: "tables", Icon: "pi pi-table", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "views:" + dbName, Label: "Views", Type: "views", Icon: "pi pi-eye", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "procedures:" + dbName, Label: "Stored Procedures", Type: "procedures", Icon: "pi pi-code", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "triggers:" + dbName, Label: "Database Triggers", Type: "databaseTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "functions:" + dbName, Label: "Functions", Type: "functions", Icon: "pi pi-code", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "security:" + dbName, Label: "Security", Type: "security", Icon: "pi pi-shield", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "tables:" + dbName, Label: "Tables", Type: "tables", Icon: "pi pi-table", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "views:" + dbName, Label: "Views", Type: "views", Icon: "pi pi-eye", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "procedures:" + dbName, Label: "Stored Procedures", Type: "procedures", Icon: "pi pi-code", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "triggers:" + dbName, Label: "Database Triggers", Type: "databaseTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "functions:" + dbName, Label: "Functions", Type: "functions", Icon: "pi pi-code", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "security:" + dbName, Label: "Security", Type: "security", Icon: "pi pi-shield", Leaf: false, Data: map[string]interface{}{"database": dbName}},
 	}, nil
 }
 
@@ -233,7 +233,7 @@ func (s *SQLServerProvider) getTableNodes(db *sql.DB, ctx map[string]string) ([]
 			Type:  "table",
 			Icon:  "pi pi-table",
 			Leaf:  false,
-			Data:  map[string]string{"database": ctx["database"], "table": name, "schema": schemaName, "objectId": fmt.Sprintf("%d", objectID)},
+			Data:  map[string]interface{}{"database": ctx["database"], "table": name, "schema": schemaName, "objectId": fmt.Sprintf("%d", objectID)},
 		})
 	}
 	return nodes, nil
@@ -245,12 +245,12 @@ func (s *SQLServerProvider) getTableChildFolders(ctx map[string]string) ([]model
 	schemaName := ctx["schema"]
 	objectId := ctx["objectId"]
 	return []models.ExplorerNode{
-		{Key: fmt.Sprintf("columns:%s:%s.%s", dbName, schemaName, tableName), Label: "Columns", Type: "tableColumns", Icon: "pi pi-bars", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
-		{Key: fmt.Sprintf("keys:%s:%s.%s", dbName, schemaName, tableName), Label: "Keys", Type: "tableKeys", Icon: "pi pi-key", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
-		{Key: fmt.Sprintf("indexes:%s:%s.%s", dbName, schemaName, tableName), Label: "Indexes", Type: "tableIndexes", Icon: "pi pi-sitemap", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
-		{Key: fmt.Sprintf("constraints:%s:%s.%s", dbName, schemaName, tableName), Label: "Constraints", Type: "tableConstraints", Icon: "pi pi-lock", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
-		{Key: fmt.Sprintf("triggers:%s:%s.%s", dbName, schemaName, tableName), Label: "Triggers", Type: "tableTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
-		{Key: fmt.Sprintf("statistics:%s:%s.%s", dbName, schemaName, tableName), Label: "Statistics", Type: "tableStatistics", Icon: "pi pi-chart-bar", Leaf: false, Data: map[string]string{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
+		{Key: fmt.Sprintf("columns:%s:%s.%s", dbName, schemaName, tableName), Label: "Columns", Type: "tableColumns", Icon: "pi pi-bars", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
+		{Key: fmt.Sprintf("keys:%s:%s.%s", dbName, schemaName, tableName), Label: "Keys", Type: "tableKeys", Icon: "pi pi-key", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
+		{Key: fmt.Sprintf("indexes:%s:%s.%s", dbName, schemaName, tableName), Label: "Indexes", Type: "tableIndexes", Icon: "pi pi-sitemap", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
+		{Key: fmt.Sprintf("constraints:%s:%s.%s", dbName, schemaName, tableName), Label: "Constraints", Type: "tableConstraints", Icon: "pi pi-lock", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
+		{Key: fmt.Sprintf("triggers:%s:%s.%s", dbName, schemaName, tableName), Label: "Triggers", Type: "tableTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
+		{Key: fmt.Sprintf("statistics:%s:%s.%s", dbName, schemaName, tableName), Label: "Statistics", Type: "tableStatistics", Icon: "pi pi-chart-bar", Leaf: false, Data: map[string]interface{}{"database": dbName, "table": tableName, "schema": schemaName, "objectId": objectId}},
 	}, nil
 }
 
@@ -609,8 +609,8 @@ func (s *SQLServerProvider) getTableStatisticNodes(db *sql.DB, ctx map[string]st
 func (s *SQLServerProvider) getFunctionChildFolders(ctx map[string]string) ([]models.ExplorerNode, error) {
 	dbName := ctx["database"]
 	return []models.ExplorerNode{
-		{Key: "tf:" + dbName, Label: "Table-valued Functions", Type: "tableValuedFunctions", Icon: "pi pi-table", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "sf:" + dbName, Label: "Scalar-valued Functions", Type: "scalarValuedFunctions", Icon: "pi pi-code", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "tf:" + dbName, Label: "Table-valued Functions", Type: "tableValuedFunctions", Icon: "pi pi-table", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "sf:" + dbName, Label: "Scalar-valued Functions", Type: "scalarValuedFunctions", Icon: "pi pi-code", Leaf: false, Data: map[string]interface{}{"database": dbName}},
 	}, nil
 }
 
@@ -671,9 +671,9 @@ func (s *SQLServerProvider) getScalarValuedFunctionNodes(db *sql.DB, ctx map[str
 func (s *SQLServerProvider) getSecurityChildFolders(ctx map[string]string) ([]models.ExplorerNode, error) {
 	dbName := ctx["database"]
 	return []models.ExplorerNode{
-		{Key: "users:" + dbName, Label: "Users", Type: "dbUsers", Icon: "pi pi-users", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "roles:" + dbName, Label: "Roles", Type: "dbRoles", Icon: "pi pi-users", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "schemas:" + dbName, Label: "Schemas", Type: "dbSchemas", Icon: "pi pi-folder", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "users:" + dbName, Label: "Users", Type: "dbUsers", Icon: "pi pi-users", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "roles:" + dbName, Label: "Roles", Type: "dbRoles", Icon: "pi pi-users", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "schemas:" + dbName, Label: "Schemas", Type: "dbSchemas", Icon: "pi pi-folder", Leaf: false, Data: map[string]interface{}{"database": dbName}},
 	}, nil
 }
 
@@ -706,8 +706,8 @@ func (s *SQLServerProvider) getDbUserNodes(db *sql.DB, ctx map[string]string) ([
 func (s *SQLServerProvider) getDbRoleChildFolders(ctx map[string]string) ([]models.ExplorerNode, error) {
 	dbName := ctx["database"]
 	return []models.ExplorerNode{
-		{Key: "dbRoles:" + dbName, Label: "Database Roles", Type: "databaseRoles", Icon: "pi pi-shield", Leaf: false, Data: map[string]string{"database": dbName}},
-		{Key: "appRoles:" + dbName, Label: "Application Roles", Type: "applicationRoles", Icon: "pi pi-shield", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "dbRoles:" + dbName, Label: "Database Roles", Type: "databaseRoles", Icon: "pi pi-shield", Leaf: false, Data: map[string]interface{}{"database": dbName}},
+		{Key: "appRoles:" + dbName, Label: "Application Roles", Type: "applicationRoles", Icon: "pi pi-shield", Leaf: false, Data: map[string]interface{}{"database": dbName}},
 	}, nil
 }
 
