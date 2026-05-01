@@ -104,14 +104,24 @@ func (m *MySQLProvider) GetExplorerChildren(config models.ConnectionConfig, node
 		return m.myGetTableChildFolders(ctx)
 	case "tableColumns":
 		return m.myGetTableColumnNodes(db, ctx)
+	case "tableKeys":
+		return m.myGetTableKeyNodes(db, ctx)
+	case "tableConstraints":
+		return m.myGetTableConstraintNodes(db, ctx)
 	case "tableIndexes":
 		return m.myGetTableIndexNodes(db, ctx)
+	case "tableTriggers":
+		return m.myGetTableTriggerNodes(db, ctx)
 	case "views":
 		return m.myGetViewNodes(db, ctx)
 	case "functions":
 		return m.myGetFunctionNodes(db, ctx)
 	case "procedures":
 		return m.myGetProcedureNodes(db, ctx)
+	case "databaseTriggers":
+		return m.myGetDatabaseTriggerNodes(db, ctx)
+	case "events":
+		return m.myGetEventNodes(db, ctx)
 	case "users":
 		return m.myGetUserNodes(db)
 	case "variables":
@@ -185,6 +195,8 @@ func (m *MySQLProvider) myGetDatabaseChildFolders(ctx map[string]string) ([]mode
 		{Key: "views:" + dbName, Label: "Views", Type: "views", Icon: "pi pi-eye", Leaf: false, Data: map[string]string{"database": dbName}},
 		{Key: "functions:" + dbName, Label: "Functions", Type: "functions", Icon: "pi pi-code", Leaf: false, Data: map[string]string{"database": dbName}},
 		{Key: "procedures:" + dbName, Label: "Procedures", Type: "procedures", Icon: "pi pi-cog", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "triggers:" + dbName, Label: "Triggers", Type: "databaseTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"database": dbName}},
+		{Key: "events:" + dbName, Label: "Events", Type: "events", Icon: "pi pi-calendar", Leaf: false, Data: map[string]string{"database": dbName}},
 	}, nil
 }
 
@@ -219,7 +231,10 @@ func (m *MySQLProvider) myGetTableChildFolders(ctx map[string]string) ([]models.
 	table := ctx["table"]
 	return []models.ExplorerNode{
 		{Key: fmt.Sprintf("columns:%s:%s", dbName, table), Label: "Columns", Type: "tableColumns", Icon: "pi pi-list", Leaf: false, Data: map[string]string{"database": dbName, "table": table}},
+		{Key: fmt.Sprintf("keys:%s:%s", dbName, table), Label: "Keys", Type: "tableKeys", Icon: "pi pi-key", Leaf: false, Data: map[string]string{"database": dbName, "table": table}},
+		{Key: fmt.Sprintf("constraints:%s:%s", dbName, table), Label: "Constraints", Type: "tableConstraints", Icon: "pi pi-lock", Leaf: false, Data: map[string]string{"database": dbName, "table": table}},
 		{Key: fmt.Sprintf("indexes:%s:%s", dbName, table), Label: "Indexes", Type: "tableIndexes", Icon: "pi pi-sort-alt", Leaf: false, Data: map[string]string{"database": dbName, "table": table}},
+		{Key: fmt.Sprintf("triggers:%s:%s", dbName, table), Label: "Triggers", Type: "tableTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"database": dbName, "table": table}},
 	}, nil
 }
 
@@ -401,6 +416,148 @@ func (m *MySQLProvider) myGetUserNodes(db *sql.DB) ([]models.ExplorerNode, error
 			Label: fmt.Sprintf("%s@%s", user, host),
 			Type:  "user",
 			Icon:  "pi pi-user",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (m *MySQLProvider) myGetTableKeyNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := `SELECT CONSTRAINT_NAME, CONSTRAINT_TYPE
+	          FROM information_schema.TABLE_CONSTRAINTS
+	          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+	            AND CONSTRAINT_TYPE IN ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY')
+	          ORDER BY CONSTRAINT_NAME`
+	rows, err := db.Query(query, ctx["database"], ctx["table"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to query keys: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []models.ExplorerNode
+	for rows.Next() {
+		var name, conType string
+		if err := rows.Scan(&name, &conType); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("key:%s:%s:%s", ctx["database"], ctx["table"], name),
+			Label: fmt.Sprintf("%s (%s)", name, conType),
+			Type:  "key",
+			Icon:  "pi pi-key",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (m *MySQLProvider) myGetTableConstraintNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := `SELECT CONSTRAINT_NAME, CONSTRAINT_TYPE
+	          FROM information_schema.TABLE_CONSTRAINTS
+	          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+	          ORDER BY CONSTRAINT_NAME`
+	rows, err := db.Query(query, ctx["database"], ctx["table"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to query constraints: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []models.ExplorerNode
+	for rows.Next() {
+		var name, conType string
+		if err := rows.Scan(&name, &conType); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("constraint:%s:%s:%s", ctx["database"], ctx["table"], name),
+			Label: fmt.Sprintf("%s (%s)", name, conType),
+			Type:  "constraint",
+			Icon:  "pi pi-lock",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (m *MySQLProvider) myGetTableTriggerNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := `SELECT TRIGGER_NAME, EVENT_MANIPULATION, ACTION_TIMING
+	          FROM information_schema.TRIGGERS
+	          WHERE TRIGGER_SCHEMA = ? AND EVENT_OBJECT_TABLE = ?
+	          ORDER BY TRIGGER_NAME`
+	rows, err := db.Query(query, ctx["database"], ctx["table"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to query triggers: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []models.ExplorerNode
+	for rows.Next() {
+		var name, event, timing string
+		if err := rows.Scan(&name, &event, &timing); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("tbtrigger:%s:%s:%s", ctx["database"], ctx["table"], name),
+			Label: fmt.Sprintf("%s (%s %s)", name, timing, event),
+			Type:  "trigger",
+			Icon:  "pi pi-bolt",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (m *MySQLProvider) myGetDatabaseTriggerNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := `SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE, EVENT_MANIPULATION, ACTION_TIMING
+	          FROM information_schema.TRIGGERS
+	          WHERE TRIGGER_SCHEMA = ?
+	          ORDER BY TRIGGER_NAME`
+	rows, err := db.Query(query, ctx["database"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to query database triggers: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []models.ExplorerNode
+	for rows.Next() {
+		var name, table, event, timing string
+		if err := rows.Scan(&name, &table, &event, &timing); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("dbtrigger:%s:%s", ctx["database"], name),
+			Label: fmt.Sprintf("%s on %s (%s %s)", name, table, timing, event),
+			Type:  "trigger",
+			Icon:  "pi pi-bolt",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (m *MySQLProvider) myGetEventNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := `SELECT EVENT_NAME, STATUS, EVENT_TYPE
+	          FROM information_schema.EVENTS
+	          WHERE EVENT_SCHEMA = ?
+	          ORDER BY EVENT_NAME`
+	rows, err := db.Query(query, ctx["database"])
+	if err != nil {
+		// Events may not be available in all MySQL editions
+		return []models.ExplorerNode{}, nil
+	}
+	defer rows.Close()
+
+	var nodes []models.ExplorerNode
+	for rows.Next() {
+		var name, status, eventType string
+		if err := rows.Scan(&name, &status, &eventType); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("event:%s:%s", ctx["database"], name),
+			Label: fmt.Sprintf("%s (%s, %s)", name, eventType, status),
+			Type:  "event",
+			Icon:  "pi pi-calendar",
 			Leaf:  true,
 		})
 	}

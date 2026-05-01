@@ -18,14 +18,12 @@ var (
 	registryLock sync.RWMutex
 )
 
-// ProviderRegistry manages all provider metadata
 type ProviderRegistry struct {
 	providers  map[string]models.ProviderMetadata
 	version    string
 	configPath string
 }
 
-// GetRegistry returns the singleton instance of ProviderRegistry
 func GetRegistry() *ProviderRegistry {
 	once.Do(func() {
 		instance = &ProviderRegistry{
@@ -36,7 +34,6 @@ func GetRegistry() *ProviderRegistry {
 	return instance
 }
 
-// LoadFromFile loads provider metadata from JSON file
 func (r *ProviderRegistry) LoadFromFile(path string) error {
 	if path != "" {
 		r.configPath = path
@@ -69,7 +66,6 @@ func (r *ProviderRegistry) LoadFromFile(path string) error {
 	return nil
 }
 
-// GetProvider returns metadata for a specific provider
 func (r *ProviderRegistry) GetProvider(id string) (models.ProviderMetadata, error) {
 	registryLock.RLock()
 	defer registryLock.RUnlock()
@@ -82,7 +78,6 @@ func (r *ProviderRegistry) GetProvider(id string) (models.ProviderMetadata, erro
 	return provider, nil
 }
 
-// GetAllProviders returns all registered providers
 func (r *ProviderRegistry) GetAllProviders() []models.ProviderMetadata {
 	registryLock.RLock()
 	defer registryLock.RUnlock()
@@ -95,7 +90,6 @@ func (r *ProviderRegistry) GetAllProviders() []models.ProviderMetadata {
 	return providers
 }
 
-// GetProvidersResponse returns the API response format
 func (r *ProviderRegistry) GetProvidersResponse() models.ProvidersResponse {
 	return models.ProvidersResponse{
 		Providers: r.GetAllProviders(),
@@ -103,7 +97,6 @@ func (r *ProviderRegistry) GetProvidersResponse() models.ProvidersResponse {
 	}
 }
 
-// IsProviderSupported checks if a provider ID is supported
 func (r *ProviderRegistry) IsProviderSupported(id string) bool {
 	registryLock.RLock()
 	defer registryLock.RUnlock()
@@ -112,7 +105,6 @@ func (r *ProviderRegistry) IsProviderSupported(id string) bool {
 	return exists
 }
 
-// GetSupportedProviderIDs returns a list of all supported provider IDs
 func (r *ProviderRegistry) GetSupportedProviderIDs() []string {
 	registryLock.RLock()
 	defer registryLock.RUnlock()

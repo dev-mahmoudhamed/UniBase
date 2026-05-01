@@ -114,16 +114,22 @@ func (p *PostgresProvider) GetExplorerChildren(config models.ConnectionConfig, n
 		return p.pgGetTableChildFolders(ctx)
 	case "tableColumns":
 		return p.pgGetTableColumnNodes(db, ctx)
+	case "tableKeys":
+		return p.pgGetTableKeyNodes(db, ctx)
 	case "tableConstraints":
 		return p.pgGetTableConstraintNodes(db, ctx)
 	case "tableIndexes":
 		return p.pgGetTableIndexNodes(db, ctx)
+	case "tableTriggers":
+		return p.pgGetTableTriggerNodes(db, ctx)
 	case "views":
 		return p.pgGetViewNodes(db, ctx)
 	case "functions":
 		return p.pgGetFunctionNodes(db, ctx)
 	case "procedures":
 		return p.pgGetProcedureNodes(db, ctx)
+	case "schemaTriggers":
+		return p.pgGetSchemaTriggerNodes(db, ctx)
 	case "roles":
 		return p.pgGetRoleNodes(db)
 	case "tablespaces":
@@ -231,6 +237,7 @@ func (p *PostgresProvider) pgGetSchemaChildFolders(ctx map[string]string) ([]mod
 		{Key: "views:" + schema, Label: "Views", Type: "views", Icon: "pi pi-eye", Leaf: false, Data: map[string]string{"schema": schema}},
 		{Key: "functions:" + schema, Label: "Functions", Type: "functions", Icon: "pi pi-code", Leaf: false, Data: map[string]string{"schema": schema}},
 		{Key: "procedures:" + schema, Label: "Procedures", Type: "procedures", Icon: "pi pi-cog", Leaf: false, Data: map[string]string{"schema": schema}},
+		{Key: "schemaTriggers:" + schema, Label: "Triggers", Type: "schemaTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"schema": schema}},
 	}, nil
 }
 
@@ -268,8 +275,10 @@ func (p *PostgresProvider) pgGetTableChildFolders(ctx map[string]string) ([]mode
 	table := ctx["table"]
 	return []models.ExplorerNode{
 		{Key: fmt.Sprintf("columns:%s:%s", schema, table), Label: "Columns", Type: "tableColumns", Icon: "pi pi-list", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
-		{Key: fmt.Sprintf("constraints:%s:%s", schema, table), Label: "Constraints", Type: "tableConstraints", Icon: "pi pi-key", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
+		{Key: fmt.Sprintf("keys:%s:%s", schema, table), Label: "Keys", Type: "tableKeys", Icon: "pi pi-key", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
+		{Key: fmt.Sprintf("constraints:%s:%s", schema, table), Label: "Constraints", Type: "tableConstraints", Icon: "pi pi-lock", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
 		{Key: fmt.Sprintf("indexes:%s:%s", schema, table), Label: "Indexes", Type: "tableIndexes", Icon: "pi pi-sort-alt", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
+		{Key: fmt.Sprintf("triggers:%s:%s", schema, table), Label: "Triggers", Type: "tableTriggers", Icon: "pi pi-bolt", Leaf: false, Data: map[string]string{"schema": schema, "table": table}},
 	}, nil
 }
 
@@ -538,6 +547,119 @@ func (p *PostgresProvider) pgGetExtensionNodes(db *sql.DB) ([]models.ExplorerNod
 			Label: fmt.Sprintf("%s (v%s)", name, version),
 			Type:  "extension",
 			Icon:  "pi pi-box",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (p *PostgresProvider) pgGetTableKeyNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := `SELECT con.conname,
+	            CASE con.contype
+	              WHEN 'p' THEN 'PRIMARY KEY'
+	              WHEN 'f' THEN 'FOREIGN KEY'
+	              WHEN 'u' THEN 'UNIQUE'
+	              ELSE con.contype::text
+	            END AS constraint_type
+	          FROM pg_constraint con
+	          JOIN pg_class c ON con.conrelid = c.oid
+	          JOIN pg_namespace n ON c.relnamespace = n.oid
+	          WHERE n.nspname = $1 AND c.relname = $2
+	            AND con.contype IN ('p', 'f', 'u')
+	          ORDER BY con.conname`
+	rows, err := db.Query(query, ctx["schema"], ctx["table"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to query keys: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []models.ExplorerNode
+	for rows.Next() {
+		var name, conType string
+		if err := rows.Scan(&name, &conType); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("key:%s:%s:%s", ctx["schema"], ctx["table"], name),
+			Label: fmt.Sprintf("%s (%s)", name, conType),
+			Type:  "key",
+			Icon:  "pi pi-key",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (p *PostgresProvider) pgGetTableTriggerNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := `SELECT t.tgname,
+	            CASE t.tgtype & 2 WHEN 2 THEN 'BEFORE' ELSE 'AFTER' END AS timing,
+	            CASE
+	              WHEN t.tgtype & 4  = 4 THEN 'INSERT'
+	              WHEN t.tgtype & 8  = 8 THEN 'DELETE'
+	              WHEN t.tgtype & 16 = 16 THEN 'UPDATE'
+	              ELSE 'UNKNOWN'
+	            END AS event
+	          FROM pg_trigger t
+	          JOIN pg_class c ON t.tgrelid = c.oid
+	          JOIN pg_namespace n ON c.relnamespace = n.oid
+	          WHERE n.nspname = $1 AND c.relname = $2
+	            AND NOT t.tgisinternal
+	          ORDER BY t.tgname`
+	rows, err := db.Query(query, ctx["schema"], ctx["table"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to query triggers: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []models.ExplorerNode
+	for rows.Next() {
+		var name, timing, event string
+		if err := rows.Scan(&name, &timing, &event); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("tbtrigger:%s:%s:%s", ctx["schema"], ctx["table"], name),
+			Label: fmt.Sprintf("%s (%s %s)", name, timing, event),
+			Type:  "trigger",
+			Icon:  "pi pi-bolt",
+			Leaf:  true,
+		})
+	}
+	return nodes, nil
+}
+
+func (p *PostgresProvider) pgGetSchemaTriggerNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
+	query := `SELECT t.tgname, c.relname AS table_name,
+	            CASE t.tgtype & 2 WHEN 2 THEN 'BEFORE' ELSE 'AFTER' END AS timing,
+	            CASE
+	              WHEN t.tgtype & 4  = 4 THEN 'INSERT'
+	              WHEN t.tgtype & 8  = 8 THEN 'DELETE'
+	              WHEN t.tgtype & 16 = 16 THEN 'UPDATE'
+	              ELSE 'UNKNOWN'
+	            END AS event
+	          FROM pg_trigger t
+	          JOIN pg_class c ON t.tgrelid = c.oid
+	          JOIN pg_namespace n ON c.relnamespace = n.oid
+	          WHERE n.nspname = $1
+	            AND NOT t.tgisinternal
+	          ORDER BY t.tgname`
+	rows, err := db.Query(query, ctx["schema"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to query schema triggers: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []models.ExplorerNode
+	for rows.Next() {
+		var name, tableName, timing, event string
+		if err := rows.Scan(&name, &tableName, &timing, &event); err != nil {
+			continue
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key:   fmt.Sprintf("trigger:%s:%s", ctx["schema"], name),
+			Label: fmt.Sprintf("%s on %s (%s %s)", name, tableName, timing, event),
+			Type:  "trigger",
+			Icon:  "pi pi-bolt",
 			Leaf:  true,
 		})
 	}
