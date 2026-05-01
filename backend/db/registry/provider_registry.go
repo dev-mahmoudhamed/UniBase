@@ -57,11 +57,7 @@ func (r *ProviderRegistry) LoadFromFile(path string) error {
 	defer registryLock.Unlock()
 
 	r.version = config.Version
-	r.providers = make(map[string]models.ProviderMetadata)
-
-	for _, provider := range config.Providers {
-		r.providers[provider.ID] = provider
-	}
+	r.providers = r.filterProviders(config.Providers)
 
 	return nil
 }
@@ -153,4 +149,25 @@ func (r *ProviderRegistry) GetDefaultPort(id string) int {
 		return 0
 	}
 	return provider.DefaultPort
+}
+
+func (r *ProviderRegistry) filterProviders(providers []models.ProviderMetadata) map[string]models.ProviderMetadata {
+	allowedIDs := []string{
+		"postgresql",
+		"mssql",
+		"mysql",
+		"mongodb",
+		// "redis",
+	}
+
+	filtered := make(map[string]models.ProviderMetadata)
+	for _, p := range providers {
+		for _, id := range allowedIDs {
+			if p.ID == id {
+				filtered[p.ID] = p
+				break
+			}
+		}
+	}
+	return filtered
 }
