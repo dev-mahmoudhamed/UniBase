@@ -160,23 +160,29 @@ export class SidebarComponent {
       const sessionId = this.sessionId();
       if (!sessionId) return;
 
+      // Only include primitive (string/number) values in context.
+      // Nested objects like `stats` would break the backend's map[string]string binding,
+      // causing a 400 "Invalid request body" error.
       const context: Record<string, string> = {};
       if (node.data) {
         Object.keys(node.data).forEach((key: string) => {
-          if (key !== 'nodeType') {
-            context[key] = node.data[key];
+          const val = node.data[key];
+          if (key !== 'nodeType' && (typeof val === 'string' || typeof val === 'number')) {
+            context[key] = String(val);
           }
         });
       }
 
-      // context contains { database, collection } from the explorer node data
       const database = context['database'] || '';
+      // Use the collection name from node.data (set explicitly by the backend as the
+      // raw collection name). node.label can carry unexpected values depending on the
+      // PrimeNG tree version, so this is the authoritative source.
+      const collectionName = context['collection'] || node.label || '';
 
-      this.explorerService.getCollectionData(sessionId, node.label || '', context).subscribe({
+      this.explorerService.getCollectionData(sessionId, collectionName, context).subscribe({
         next: (data: any) => {
-          // Attach the database so the viewer can use it for updates
           const enriched: MongoCollectionData = {
-            collection: data.collection ?? node.label ?? '',
+            collection: collectionName,
             database,
             documents: data.documents ?? [],
             count: data.count ?? 0
@@ -184,8 +190,9 @@ export class SidebarComponent {
           this.collectionSelected.emit(enriched);
         },
         error: (err: any) => {
+          // Even on error emit so the app still auto-populates the query editor
           this.collectionSelected.emit({
-            collection: node.label ?? '',
+            collection: collectionName,
             database,
             documents: [],
             count: 0

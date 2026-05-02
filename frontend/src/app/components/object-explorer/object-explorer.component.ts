@@ -52,16 +52,12 @@ export class ObjectExplorerComponent {
     private processAndSortNodes(nodes: TreeNode[], shouldSort: boolean): TreeNode[] {
         let result = [...nodes];
 
-        // Only sort if instructed (i.e. we are processing children of a 'database' node)
         if (shouldSort) {
             result.sort((a, b) => (a.label || '').localeCompare(b.label || ''));
         }
 
         for (const node of result) {
             if (node.children && node.children.length > 0) {
-                // If THIS node is a 'database', sort its children. 
-                // We do NOT pass 'shouldSort' down further unless we want deep sorting, 
-                // but usually clicking a database returns immediate children.
                 const sortChildren = node.type === 'database';
                 node.children = this.processAndSortNodes(node.children, sortChildren);
             }
@@ -75,7 +71,6 @@ export class ObjectExplorerComponent {
             const labelMatch = (node.label || '').toLowerCase().includes(query);
             const filteredChildren = node.children ? this.filterNodes(node.children, query) : [];
             if (labelMatch || filteredChildren.length > 0) {
-                // Use the same node reference; temporarily override children for display
                 result.push({
                     ...node,
                     children: filteredChildren.length > 0 ? filteredChildren : node.children,
@@ -103,10 +98,6 @@ export class ObjectExplorerComponent {
         });
     }
 
-    /**
-     * Recursively finds a node by key inside the allTreeNodes source and
-     * sets its children, so the computed treeNodes picks up the change.
-     */
     private updateNodeInSource(nodes: TreeNode[], targetKey: string | undefined, children: TreeNode[], error?: string): boolean {
         if (!targetKey) return false;
         for (const node of nodes) {
@@ -138,7 +129,6 @@ export class ObjectExplorerComponent {
 
         if (!sessionId || !node) return;
 
-        // Already loaded children (non-empty array)
         if (node.children && node.children.length > 0) {
             return;
         }
@@ -159,10 +149,8 @@ export class ObjectExplorerComponent {
 
         this.explorerService.getChildren(sessionId, nodeType, context).subscribe({
             next: (children) => {
-                // Update the source node in allTreeNodes (by reference search)
                 const sourceNodes = this.allTreeNodes();
                 this.updateNodeInSource(sourceNodes, node.key, children);
-                // Trigger reactivity
                 this.allTreeNodes.set([...sourceNodes]);
             },
             error: (err) => {
@@ -188,30 +176,48 @@ export class ObjectExplorerComponent {
         this.searchQuery.set('');
     }
 
+    /**
+     * Builds an HTML tooltip for MongoDB collection nodes using real stats
+     * fetched by the backend's collStats command and field sampling.
+     */
     getMongoTooltip(node: TreeNode): string {
-        if (node.type !== 'collection' || !node.data?.stats) return '';
-        const stats = node.data.stats;
-        const count = stats.count || 0;
-        const storageSize = this.formatSize(stats.storageSize || 0);
-        const fields = (stats.fields || []).join(', ');
+        if (node.type !== 'collection') return '';
 
-        return `
-            <div class="mongo-tooltip">
-                <div class="tooltip-header"><strong>${node.label}</strong> • ${this.formatCount(count)} docs • ${storageSize} • <span class="trend-up">↑18%</span></div>
-                <div class="tooltip-row">Reads: 220/s | Writes: 45/s</div>
-                <div class="tooltip-row">Avg query: 180ms</div>
-                <div class="tooltip-divider"></div>
-                <div class="tooltip-row">Indexes: ${stats.nindexes || 0} (2 unused)</div>
-                <div class="tooltip-warning">⚠ Missing index on userId</div>
-                <div class="tooltip-warning">⚠ Large documents</div>
-                <div class="tooltip-divider"></div>
-                <div class="tooltip-fields">Fields: ${fields}</div>
-            </div>
-        `;
+        const stats = node.data?.stats;
+
+        // If no stats were returned (e.g. permissions issue), show a minimal tooltip
+        if (!stats || typeof stats !== 'object') {
+            return `<div class="mongo-tooltip">
+                <div class="tooltip-header"><strong>${node.label}</strong></div>
+                <div class="tooltip-row" style="opacity:0.6">Stats unavailable</div>
+            </div>`;
+        }
+
+        const count = stats['count'] ?? 0;
+        const size = this.formatSize(stats['size'] ?? 0);
+        const storageSize = this.formatSize(stats['storageSize'] ?? 0);
+        const nindexes = stats['nindexes'] ?? 0;
+        const fields: string[] = Array.isArray(stats['fields']) ? stats['fields'] : [];
+
+        const rows: string[] = [];
+
+        rows.push(`<div class="tooltip-header">
+            <strong>${node.label}</strong> &bull; ${this.formatCount(count)} doc${count !== 1 ? 's' : ''} &bull; ${size}
+        </div>`);
+
+        rows.push(`<div class="tooltip-row">Storage: <strong>${storageSize}</strong></div>`);
+        rows.push(`<div class="tooltip-row">Indexes: <strong>${nindexes}</strong></div>`);
+
+        if (fields.length > 0) {
+            rows.push(`<div class="tooltip-divider"></div>`);
+            rows.push(`<div class="tooltip-fields">Sample fields: ${fields.join(', ')}</div>`);
+        }
+
+        return `<div class="mongo-tooltip">${rows.join('')}</div>`;
     }
 
     formatSize(bytes: number): string {
-        if (bytes === 0) return '0 B';
+        if (!bytes || bytes === 0) return '0 B';
         const k = 1024;
         const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -219,8 +225,8 @@ export class ObjectExplorerComponent {
     }
 
     formatCount(num: number): string {
-        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M';
+        if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K';
         return num.toString();
     }
 }

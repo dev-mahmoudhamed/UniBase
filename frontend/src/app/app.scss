@@ -19,6 +19,27 @@
   height: 100%;
   width: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  // Allows a single child (e.g. results-viewer in MongoDB mode) to fill the space
+  > * {
+    flex: 1;
+    min-height: 0;
+  }
+
+  // as-split manages its own sizing — don't interfere
+  > as-split {
+    flex: 1;
+  }
+}
+
+// Explicit helper for the MongoDB full-height results viewer
+.full-height-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
 }
 
 ::ng-deep {
