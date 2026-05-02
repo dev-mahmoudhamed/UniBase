@@ -12,6 +12,7 @@ import { MongoViewerComponent } from './components/mongo-viewer/mongo-viewer.com
 import { QueryService } from './services/query.service';
 import { ConnectionService } from './services/connection.service';
 import { MongoCollectionData } from './services/explorer.service';
+import { hashQueryId } from './utils/hash.utils';
 import { DatabaseConnection, DatabaseProvider, QueryResult, QueryError } from './models/database.model';
 
 @Component({
@@ -25,7 +26,7 @@ import { DatabaseConnection, DatabaseProvider, QueryResult, QueryError } from '.
     ResultsViewerComponent,
     ConnectionDialogComponent,
     RedisViewerComponent,
-    MongoViewerComponent
+    // MongoViewerComponent
   ],
   templateUrl: './app.html',
   styleUrls: ['./app.scss']
@@ -37,10 +38,11 @@ export class AppComponent {
   queryResult = signal<QueryResult | QueryError | null>(null);
   isLoadingQuery = signal(false);
 
-  /** Structured collection data passed to MongoViewerComponent */
   selectedCollectionData = signal<MongoCollectionData | null>(null);
 
   selectedRedisKey = signal<{ database: string; key: string } | null>(null);
+  currentQueryText = signal<string>('');
+  currentLanguage = computed(() => this.isMongoConnection() ? 'javascript' : 'sql');
 
   private queryService = inject(QueryService);
   private connectionService = inject(ConnectionService);
@@ -74,9 +76,22 @@ export class AppComponent {
     this.editingConnection.set(null);
   }
 
-  /** Receives the structured collection data from the sidebar */
   onCollectionSelected(data: MongoCollectionData): void {
     this.selectedCollectionData.set(data);
+
+    if (this.isMongoConnection()) {
+      const defaultQuery = `db.${data.collection}.find({})`;
+      this.currentQueryText.set(defaultQuery);
+
+      const sessionId = this.connectionService.sessionId();
+      if (sessionId) {
+        this.executeQuery({
+          query: defaultQuery,
+          queryId: hashQueryId(defaultQuery),
+          sessionId
+        });
+      }
+    }
   }
 
   onRedisKeySelected(event: { database: string; key: string }): void {

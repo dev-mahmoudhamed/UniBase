@@ -6,6 +6,8 @@ import (
 	"db-server/models"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -120,11 +122,10 @@ func (m *MongoDBProvider) ExecuteQuery(config models.ConnectionConfig, query str
 
 	startTime := time.Now()
 
-	// Try to parse query as Extended JSON for MongoDB commands
-	var cmd bson.D
-	err = bson.UnmarshalExtJSON([]byte(query), true, &cmd)
+	// Try to transform shell-like query or parse as Extended JSON
+	cmd, err := m.transformShellQuery(query)
 	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("MongoDB queries must be valid Extended JSON commands: %w", err)
+		return models.QueryResult{}, fmt.Errorf("failed to parse MongoDB query: %w", err)
 	}
 
 	dbName := config.Database
@@ -136,22 +137,116 @@ func (m *MongoDBProvider) ExecuteQuery(config models.ConnectionConfig, query str
 	if res.Err() != nil {
 		return models.QueryResult{}, fmt.Errorf("command execution failed: %w", res.Err())
 	}
-
 	var result map[string]interface{}
 	if err := res.Decode(&result); err != nil {
 		return models.QueryResult{}, fmt.Errorf("failed to decode result: %w", err)
 	}
 
 	executionTime := time.Since(startTime).Milliseconds()
+	rows := []map[string]interface{}{}
+	
+	// Handle results: could be a single document or a cursor result
+	if cursorData, ok := result["cursor"].(map[string]interface{}); ok {
+		// If it's a cursor (from aggregate or find command)
+		if firstBatch, ok := cursorData["firstBatch"].([]interface{}); ok {
+			for _, item := range firstBatch {
+				if doc, ok := item.(map[string]interface{}); ok {
+					rows = append(rows, sanitizeBSONDocument(doc))
+				} else {
+					rows = append(rows, map[string]interface{}{"value": item})
+				}
+			}
+		}
+	} else {
+		// Single result
+		rows = append(rows, result)
+	}
 
-	rows := []map[string]interface{}{result}
+	// Calculate unique columns from results
+	columnsMap := make(map[string]bool)
+	for _, row := range rows {
+		for k := range row {
+			columnsMap[k] = true
+		}
+	}
+
+	columns := []string{}
+	// Priority to _id
+	if columnsMap["_id"] {
+		columns = append(columns, "_id")
+		delete(columnsMap, "_id")
+	}
+	for k := range columnsMap {
+		columns = append(columns, k)
+	}
 
 	return models.QueryResult{
-		Columns:       []string{"result"},
+		Columns:       columns,
 		Rows:          rows,
 		RowCount:      len(rows),
 		ExecutionTime: executionTime,
 	}, nil
+}
+
+func (m *MongoDBProvider) transformShellQuery(query string) (bson.D, error) {
+	query = strings.TrimSpace(query)
+	if !strings.HasPrefix(query, "db.") {
+		var cmd bson.D
+		err := bson.UnmarshalExtJSON([]byte(query), true, &cmd)
+		return cmd, err
+	}
+
+	// Simple regex to extract collection, method, and arguments
+	re := regexp.MustCompile(`^db\.([^.]+)\.([^.]+)\(([\s\S]*)\)$`)
+	matches := re.FindStringSubmatch(query)
+	if len(matches) < 4 {
+		return nil, fmt.Errorf("unsupported or invalid MongoDB shell-like query format")
+	}
+
+	collName := matches[1]
+	method := matches[2]
+	args := strings.TrimSpace(matches[3])
+
+	switch method {
+	case "find":
+		var filter bson.M
+		if args == "" {
+			filter = bson.M{}
+		} else {
+			err := bson.UnmarshalExtJSON([]byte(args), true, &filter)
+			if err != nil {
+				// Handle multiple arguments or invalid JSON
+				// For now, assume first arg is filter
+				return nil, fmt.Errorf("invalid filter JSON: %w", err)
+			}
+		}
+		return bson.D{
+			{Key: "find", Value: collName},
+			{Key: "filter", Value: filter},
+		}, nil
+	case "aggregate":
+		var pipeline []bson.M
+		err := bson.UnmarshalExtJSON([]byte(args), true, &pipeline)
+		if err != nil {
+			return nil, fmt.Errorf("invalid pipeline JSON (must be an array): %w", err)
+		}
+		return bson.D{
+			{Key: "aggregate", Value: collName},
+			{Key: "pipeline", Value: pipeline},
+			{Key: "cursor", Value: bson.D{}},
+		}, nil
+	case "countDocuments", "count":
+		var filter bson.M
+		if args != "" {
+			_ = bson.UnmarshalExtJSON([]byte(args), true, &filter)
+		}
+		return bson.D{
+			{Key: "count", Value: collName},
+			{Key: "query", Value: filter},
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported method: %s", method)
+	}
 }
 
 // GetExplorerChildren returns child nodes for the MongoDB object explorer tree
@@ -186,7 +281,7 @@ func (m *MongoDBProvider) GetExplorerChildren(config models.ConnectionConfig, no
 				Type:  "database",
 				Icon:  "pi pi-database",
 				Leaf:  false,
-				Data:  map[string]string{"database": dbName},
+				Data:  map[string]interface{}{"database": dbName},
 			})
 		}
 		return nodes, nil
@@ -198,19 +293,62 @@ func (m *MongoDBProvider) GetExplorerChildren(config models.ConnectionConfig, no
 		}
 		var nodes []models.ExplorerNode
 		for _, collName := range collections {
+			// Fetch collection stats for tooltip
+			stats := m.getCollectionStats(mctx, client.Database(dbName), collName)
+
 			nodes = append(nodes, models.ExplorerNode{
 				Key:   fmt.Sprintf("coll:%s:%s", dbName, collName),
 				Label: collName,
 				Type:  "collection",
 				Icon:  "pi pi-list",
 				Leaf:  true,
-				Data:  map[string]string{"database": dbName, "collection": collName},
+				Data: map[string]interface{}{
+					"database":   dbName,
+					"collection": collName,
+					"stats":      stats,
+				},
 			})
 		}
 		return nodes, nil
 	default:
 		return []models.ExplorerNode{}, nil
 	}
+}
+
+func (m *MongoDBProvider) getCollectionStats(ctx context.Context, db *mongo.Database, collName string) map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	// collStats command
+	res := db.RunCommand(ctx, bson.D{{Key: "collStats", Value: collName}})
+	var result bson.M
+	if err := res.Decode(&result); err == nil {
+		stats["count"] = result["count"]
+		stats["size"] = result["size"]
+		stats["storageSize"] = result["storageSize"]
+		stats["nindexes"] = result["nindexes"]
+	}
+
+	// Get some fields by sampling
+	cursor, err := db.Collection(collName).Aggregate(ctx, mongo.Pipeline{
+		{{Key: "$sample", Value: bson.D{{Key: "size", Value: 1}}}},
+	})
+	if err == nil {
+		defer cursor.Close(ctx)
+		if cursor.Next(ctx) {
+			var doc bson.M
+			if err := cursor.Decode(&doc); err == nil {
+				fields := []string{}
+				for k := range doc {
+					if len(fields) < 5 {
+						fields = append(fields, k)
+					}
+				}
+				stats["fields"] = fields
+			}
+		}
+	}
+
+	return stats
 }
 
 // GetCollectionData fetches documents from a MongoDB collection

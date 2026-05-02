@@ -28,6 +28,18 @@ export class ResultsViewerComponent {
         return result && 'message' in result;
     }
 
+    formatValue(val: any): string {
+        if (val === null || val === undefined) return 'NULL';
+        if (typeof val === 'object') {
+            try {
+                return JSON.stringify(val);
+            } catch {
+                return '[Object]';
+            }
+        }
+        return String(val);
+    }
+
     rowTrackBy(index: number, item: any): number {
         return index;
     }

@@ -199,7 +199,7 @@ func (r *RedisProvider) GetExplorerChildren(config models.ConnectionConfig, node
 						Type:  "database",
 						Icon:  "pi pi-server",
 						Leaf:  false,
-						Data:  map[string]string{"database": dbIdx},
+						Data:  map[string]interface{}{"database": dbIdx},
 					})
 				}
 			}
@@ -237,7 +237,7 @@ func (r *RedisProvider) GetExplorerChildren(config models.ConnectionConfig, node
 				Type:  "key",
 				Icon:  icon,
 				Leaf:  true,
-				Data:  map[string]string{"database": config.Database, "key": k},
+				Data:  map[string]interface{}{"database": config.Database, "key": k},
 			})
 		}
 		return nodes, nil

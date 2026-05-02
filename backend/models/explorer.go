@@ -14,7 +14,7 @@ type ExplorerNode struct {
 	Type     string            `json:"type"`
 	Icon     string            `json:"icon"`
 	Leaf     bool              `json:"leaf"`
-	Data     map[string]string `json:"data,omitempty"`
+	Data     map[string]interface{} `json:"data,omitempty"`
 	Children []ExplorerNode    `json:"children,omitempty"`
 }
 

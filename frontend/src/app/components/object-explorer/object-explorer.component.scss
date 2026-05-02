@@ -242,3 +242,66 @@
     transform: rotate(360deg);
   }
 }
+
+:host ::ng-deep {
+  .p-tooltip {
+    max-width: 350px;
+
+    .p-tooltip-text {
+      background: #1a1b26;
+      border: 1px solid rgba(124, 58, 237, 0.3);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      padding: 12px;
+      border-radius: 8px;
+    }
+  }
+
+  .mongo-tooltip {
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 11px;
+    line-height: 1.5;
+    color: #a9b1d6;
+
+    .tooltip-header {
+      color: #7aa2f7;
+      margin-bottom: 8px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 6px;
+
+      strong {
+        color: #fff;
+      }
+    }
+
+    .tooltip-row {
+      margin-bottom: 2px;
+    }
+
+    .tooltip-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.05);
+      margin: 8px 0;
+    }
+
+    .trend-up {
+      color: #9ece6a;
+    }
+
+    .tooltip-warning {
+      color: #e0af68;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .tooltip-fields {
+      color: #bb9af7;
+      word-break: break-all;
+    }
+  }
+}

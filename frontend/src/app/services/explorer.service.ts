@@ -9,7 +9,7 @@ export interface ExplorerNode {
     type: string;
     icon: string;
     leaf: boolean;
-    data?: Record<string, string>;
+    data?: Record<string, any>;
     children?: ExplorerNode[];
 }
 
