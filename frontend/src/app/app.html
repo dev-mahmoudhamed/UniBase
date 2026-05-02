@@ -11,10 +11,18 @@
 
     <as-split-area size="*">
       <div class="main-content">
+
         @if (isRedisConnection()) {
+        <!-- Redis: dedicated key browser, no query editor -->
         <app-redis-viewer [selectedKey]="selectedRedisKey()"></app-redis-viewer>
 
+        } @else if (isMongoConnection()) {
+        <!-- MongoDB: results-only view — query editor hidden until MongoDB query support is added -->
+        <app-results-viewer class="full-height-viewer" [result]="queryResult()" [isLoading]="isLoadingQuery()">
+        </app-results-viewer>
+
         } @else {
+        <!-- SQL databases: split query editor + results -->
         <as-split direction="vertical" [gutterSize]="4">
           <as-split-area [size]="60" [minSize]="20">
             <app-query-editor [queryText]="currentQueryText()" (queryTextChange)="currentQueryText.set($event)"
@@ -27,6 +35,7 @@
           </as-split-area>
         </as-split>
         }
+
       </div>
     </as-split-area>
   </as-split>
