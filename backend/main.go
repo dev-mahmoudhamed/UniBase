@@ -46,8 +46,6 @@ func main() {
 		providers := api.Group("/providers")
 		{
 			providers.GET("", handlers.GetProviders)
-			// providers.GET("/:id", handlers.GetProviderByID)
-			// providers.POST("/validate", handlers.ValidateProviderConfig)
 		}
 
 		connection := api.Group("/connection")
@@ -60,6 +58,7 @@ func main() {
 		{
 			explorer.POST("/children", handlers.GetExplorerChildren)
 			explorer.POST("/collection-data", handlers.GetCollectionData)
+			explorer.POST("/collection-metadata", handlers.GetCollectionMetadata)
 		}
 
 		query := api.Group("/query")

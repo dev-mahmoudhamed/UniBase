@@ -78,7 +78,7 @@ export class ConnectionDialogComponent implements OnInit {
 
     onTest(): void {
         this.errors.set([]);
-        this.testStatus.set({ loading: true, message: 'Testing connection...', success: null });
+        this.testStatus.set({ loading: true, message: null, success: null });
 
         const validationErrors = this.validateConnection();
         if (validationErrors.length > 0) {
@@ -96,24 +96,21 @@ export class ConnectionDialogComponent implements OnInit {
         this.queryService.testConnection(testConn)
             .pipe(finalize(() => this.testStatus.update(s => ({ ...s, loading: false }))))
             .subscribe({
-                next: (result) => {
-                    if (result && 'message' in result && !('columns' in result)) {
-                        this.testStatus.set({ loading: false, message: result.message, success: true });
-                    } else if (result) {
-                        this.testStatus.set({ loading: false, message: 'Connection successful', success: true });
-                    } else {
-                        this.testStatus.set({ loading: false, message: 'No response from server', success: false });
-                    }
+                next: (result: any) => {
+                    // result.message comes from our new Success utility
+                    const msg = result?.message || 'Connection successful';
+                    this.testStatus.set({ loading: false, message: msg, success: true });
                 },
                 error: (err) => {
                     this.testStatus.set({
                         loading: false,
-                        message: err?.error?.error || err?.message || 'Connection failed',
+                        message: err?.error?.error || 'Connection failed',
                         success: false
                     });
                 }
             });
     }
+
 
     onSave(): void {
         this.errors.set([]);
@@ -165,10 +162,13 @@ export class ConnectionDialogComponent implements OnInit {
             .pipe(finalize(() => this.testStatus.update(s => ({ ...s, loading: false }))))
             .subscribe({
                 next: (response) => {
-                    if (!response) {
-                        this.testStatus.set({ loading: false, message: 'No response from server', success: false });
+                    if (!response || response.status === 'error') {
+                        this.testStatus.set({ loading: false, message: response?.error || 'No response from server', success: false });
                         return;
                     }
+                    
+                    const sessionId = response.data?.session_id;
+
                     if (editing) {
                         const updatedConnection: DatabaseConnection = {
                             ...fullConnectionData,
@@ -178,12 +178,13 @@ export class ConnectionDialogComponent implements OnInit {
                     } else {
                         const newConnection: DatabaseConnection = {
                             ...fullConnectionData,
-                            id: response.session_id || this.generateId()
+                            id: sessionId || this.generateId()
                         };
                         this.connectionService.addConnection(newConnection);
                     }
                     this.close.emit();
                 },
+
                 error: (err) => {
                     this.testStatus.set({
                         loading: false,

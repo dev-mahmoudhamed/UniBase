@@ -10,45 +10,111 @@
     </div>
     } @else if (errorMessage()) {
     <div class="error-state">
-        <i class="pi pi-exclamation-triangle"></i>
+        <i class="fa-solid fa-triangle-exclamation"></i>
         <span>{{ errorMessage() }}</span>
     </div>
     } @else if (allTreeNodes().length > 0) {
-    <!-- Search Box -->
+
     <div class="explorer-search">
-        <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2.5">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
+        <i class="fa-solid fa-magnifying-glass search-icon" style="font-size: 10px;"></i>
         <input type="text" class="search-input" placeholder="Filter..." [ngModel]="searchQuery()"
             (ngModelChange)="searchQuery.set($event)" id="explorer-search-input" />
-        @if (searchQuery()) {
-        <button class="search-clear" (click)="clearSearch()" title="Clear search">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-        </button>
-        }
+        <div class="search-actions">
+            @if (searchQuery()) {
+            <button class="action-btn" (click)="clearSearch()" title="Clear search">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            }
+        </div>
     </div>
+
     <p-tree [value]="treeNodes()" [loading]="false" [filter]="false" selectionMode="single"
-        (onNodeExpand)="onNodeExpand($event)" (onNodeSelect)="onNodeSelect($event)" [scrollHeight]="'100%'"
+        (onNodeExpand)="onNodeExpand($event)" (onNodeSelect)="onNodeSelect($event)" 
+        (onNodeContextMenu)="onNodeContextMenu($event)"
+        [scrollHeight]="'100%'"
         id="object-explorer-tree">
-        <ng-template pTemplate="default" let-node>
-            <span [pTooltip]="getMongoTooltip(node)" tooltipPosition="right" [escape]="false" class="tree-node-label">
-                {{node.label}}
-            </span>
+        <ng-template pTemplate="collection" let-node>
+            <div class="tree-node-wrapper" (mouseenter)="onNodeMouseEnter($event, node)"
+                (mouseleave)="onNodeMouseLeave()"
+                style="display: flex; align-items: center; width: 100%; height: 100%; min-height: 24px;">
+                <span class="tree-node-label">{{ node.label }}</span>
+            </div>
         </ng-template>
     </p-tree>
+
     @if (searchQuery() && treeNodes().length === 0) {
     <div class="no-results">
         <span>No results for "{{ searchQuery() }}"</span>
     </div>
     }
+
     } @else {
     <div class="empty-state">
         <span class="text-muted">No data loaded</span>
     </div>
     }
 </div>
+
+@if (tooltip().visible) {
+<div class="mongo-tooltip-panel" [style.left.px]="tooltip().x" [style.top.px]="tooltip().y"
+    (mouseenter)="$event.stopPropagation()" (mouseleave)="onNodeMouseLeave()">
+
+    @if (tooltip().loading) {
+    <div class="tt-row tt-loading">
+        <span class="tt-spinner"></span>
+        <span>Loading metadata…</span>
+    </div>
+    } @else if (tooltip().content) {
+    <div class="tt-header">
+        <strong>{{ tooltip().content!.name }}</strong>
+        <span class="tt-trend">{{ tooltip().content!.trend }}</span>
+    </div>
+    <div class="tt-row">
+        <span class="tt-label">Documents</span>
+        <span class="tt-value">{{ formatCount(tooltip().content!.count) }}</span>
+    </div>
+    <div class="tt-row">
+        <span class="tt-label">Data size</span>
+        <span class="tt-value">{{ formatSize(tooltip().content!.size) }}</span>
+    </div>
+    <div class="tt-row">
+        <span class="tt-label">Storage</span>
+        <span class="tt-value">{{ formatSize(tooltip().content!.storageSize) }}</span>
+    </div>
+    <div class="tt-divider"></div>
+    <div class="tt-row">
+        <span class="tt-label">Reads / Writes</span>
+        <span class="tt-value">{{ tooltip().content!.readsPerSec }}/s · {{ tooltip().content!.writesPerSec }}/s</span>
+    </div>
+    <div class="tt-row">
+        <span class="tt-label">Avg query</span>
+        <span class="tt-value">{{ tooltip().content!.avgQueryTime }}</span>
+    </div>
+    <div class="tt-row">
+        <span class="tt-label">Indexes</span>
+        <span class="tt-value">{{ tooltip().content!.indexCount }}
+            @if (tooltip().content!.unusedIndices > 0) {
+            <span class="tt-warn">({{ tooltip().content!.unusedIndices }} unused)</span>
+            }
+        </span>
+    </div>
+
+    @if (tooltip().content!.alerts.length > 0) {
+    <div class="tt-divider"></div>
+    @for (alert of tooltip().content!.alerts; track $index) {
+    <div class="tt-alert"><i class="fa-solid fa-triangle-exclamation"></i> {{ alert }}</div>
+    }
+    }
+
+    @if (tooltip().content!.fields.length > 0) {
+    <div class="tt-divider"></div>
+    <div class="tt-fields">
+        <span class="tt-label">Fields</span>
+        <span class="tt-field-list">{{ tooltip().content!.fields.join(', ') }}</span>
+    </div>
+    }
+    } @else {
+    <div class="tt-row" style="opacity: 0.6;">No metadata available</div>
+    }
+</div>
+}

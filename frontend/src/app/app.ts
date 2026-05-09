@@ -26,8 +26,9 @@ import { DatabaseConnection, DatabaseProvider, QueryResult, QueryError } from '.
     ResultsViewerComponent,
     ConnectionDialogComponent,
     RedisViewerComponent,
-    // MongoViewerComponent
+    MongoViewerComponent
   ],
+
   templateUrl: './app.html',
   styleUrls: ['./app.scss']
 })
@@ -79,19 +80,19 @@ export class AppComponent {
   onCollectionSelected(data: MongoCollectionData): void {
     this.selectedCollectionData.set(data);
 
-    if (this.isMongoConnection()) {
-      const defaultQuery = `db.${data.collection}.find({})`;
-      this.currentQueryText.set(defaultQuery);
+    // if (this.isMongoConnection()) {
+    //   const defaultQuery = `db.${data.collection}.find()`;
+    //   this.currentQueryText.set(defaultQuery);
 
-      const sessionId = this.connectionService.sessionId();
-      if (sessionId) {
-        this.executeQuery({
-          query: defaultQuery,
-          queryId: hashQueryId(defaultQuery),
-          sessionId
-        });
-      }
-    }
+    //   const sessionId = this.connectionService.sessionId();
+    //   if (sessionId) {
+    //     this.executeQuery({
+    //       query: defaultQuery,
+    //       queryId: hashQueryId(defaultQuery),
+    //       sessionId
+    //     });
+    //   }
+    // }
   }
 
   onRedisKeySelected(event: { database: string; key: string }): void {
@@ -106,7 +107,7 @@ export class AppComponent {
 
     this.queryService.executeQuery(sessionId, queryId, query).pipe(
       expand(response => {
-        if (response?.message === 'query timeout') {
+        if (response?.message === 'query timeout' || response?.status === 'accepted') {
           return timer(2000).pipe(
             concatMap(() => this.queryService.executeQuery(sessionId, queryId, query).pipe(
               catchError(err => of({ status: 'error', error: err?.message || 'Polling failed' } as any))
@@ -115,14 +116,14 @@ export class AppComponent {
         }
         return EMPTY;
       }),
-      filter(response => response?.message !== 'query timeout'),
+      filter(response => response?.message !== 'query timeout' && response?.status !== 'accepted'),
       last()
     ).subscribe({
       next: (response) => {
         if (!response) {
           this.queryResult.set({ message: 'No response from server' });
-        } else if (response.status === 'success' && response.results) {
-          this.queryResult.set(response.results);
+        } else if (response.status === 'success' && response.data?.results) {
+          this.queryResult.set(response.data.results);
         } else if (response.error) {
           this.queryResult.set({ message: response.error });
         } else {
@@ -137,4 +138,5 @@ export class AppComponent {
       }
     });
   }
+
 }

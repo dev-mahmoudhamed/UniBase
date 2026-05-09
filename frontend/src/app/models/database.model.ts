@@ -80,3 +80,10 @@ export interface ProvidersResponse {
     providers: ProviderMetadata[];
     version: string;
 }
+
+export interface ApiResponse<T = any> {
+    status: 'success' | 'error' | 'accepted';
+    message?: string;
+    data?: T;
+    error?: string;
+}

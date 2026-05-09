@@ -1,13 +1,16 @@
 package session
 
 import (
+	"context"
 	"database/sql"
 	"db-server/models"
 	"fmt"
-	"hash/fnv"
 	"log"
-	"strconv"
 	"sync"
+	"time"
+
+	"crypto/rand"
+	"encoding/hex"
 
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
@@ -15,107 +18,161 @@ import (
 
 const (
 	sessionDBPath  = "./sessions.db"
+	sessionTimeout = 5 * time.Second
 	createTableSQL = `CREATE TABLE IF NOT EXISTS sessions (
-		"id" INTEGER PRIMARY KEY,
-		"provider" TEXT,
-		"host" TEXT,
-		"port" INTEGER,
+		"id" TEXT PRIMARY KEY,
+		"provider" TEXT NOT NULL,
+		"host" TEXT NOT NULL,
+		"port" INTEGER NOT NULL,
 		"user" TEXT,
+		"password" TEXT,
 		"database" TEXT,
-		"ssl_mode" TEXT
+		"ssl_mode" TEXT,
+		"created_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 )
 
+// SessionStore wraps the SQLite database used to persist connection sessions.
+type SessionStore struct {
+	db *sql.DB
+	mu sync.RWMutex
+}
+
 var (
-	sessionDB     *sql.DB
-	sessionPWDMap = make(map[string]string)
-	mapMutex      sync.RWMutex
+	defaultStore *SessionStore
+	once         sync.Once
 )
 
+// InitSessionStore initialises the singleton session store.
+// It is safe to call multiple times; subsequent calls are no-ops.
 func InitSessionStore() {
-	var err error
-	sessionDB, err = sql.Open("sqlite3", sessionDBPath)
-	if err != nil {
-		log.Fatal("Failed to open sessions.db: ", err)
-	}
+	once.Do(func() {
+		db, err := sql.Open("sqlite3", sessionDBPath)
+		if err != nil {
+			log.Fatalf("session: failed to open %s: %v", sessionDBPath, err)
+		}
 
-	statement, err := sessionDB.Prepare(createTableSQL)
-	if err != nil {
-		log.Fatal("Failed to prepare create table statement: ", err)
-	}
-	defer statement.Close()
+		db.SetMaxOpenConns(10)
+		db.SetMaxIdleConns(5)
+		db.SetConnMaxLifetime(time.Hour)
 
-	_, err = statement.Exec()
-	if err != nil {
-		log.Fatal("Failed to create sessions table: ", err)
+		ctx, cancel := context.WithTimeout(context.Background(), sessionTimeout)
+		defer cancel()
+
+		if err := db.PingContext(ctx); err != nil {
+			log.Fatalf("session: failed to ping %s: %v", sessionDBPath, err)
+		}
+
+		if _, err := db.ExecContext(ctx, createTableSQL); err != nil {
+			log.Fatalf("session: failed to create sessions table: %v", err)
+		}
+
+		defaultStore = &SessionStore{db: db}
+		log.Println("session: store initialised successfully")
+	})
+}
+
+// CloseSessionStore closes the underlying database connection.
+func CloseSessionStore() {
+	if defaultStore != nil && defaultStore.db != nil {
+		if err := defaultStore.db.Close(); err != nil {
+			log.Printf("session: error closing store: %v", err)
+		}
 	}
 }
 
-func generateSessionID(config models.ConnectionConfig) string {
-	h := fnv.New64a()
-	h.Write([]byte(config.Provider))
-	h.Write([]byte(config.Host))
-	h.Write([]byte(fmt.Sprintf("%d", config.Port)))
-	h.Write([]byte(config.User))
-	h.Write([]byte(config.Database))
-	h.Write([]byte(config.SSLMode))
-
-	id := int64(h.Sum64())
-	if id < 0 {
-		id = -id
+func generateSecureID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("session: failed to generate secure ID: %w", err)
 	}
-	return strconv.FormatInt(id, 10)
+	return hex.EncodeToString(b), nil
 }
 
+// StoreSession persists a new session and returns its unique ID.
 func StoreSession(config models.ConnectionConfig) (string, error) {
-	sessionID := generateSessionID(config)
-
-	stmt, err := sessionDB.Prepare("INSERT OR REPLACE INTO sessions(id, provider, host, port, user, database, ssl_mode) values(?,?,?,?,?,?,?)")
-	if err != nil {
-		return "", err
+	if defaultStore == nil {
+		return "", fmt.Errorf("session: store not initialised")
 	}
-	defer stmt.Close()
 
-	_, err = stmt.Exec(sessionID, config.Provider, config.Host, config.Port, config.User, config.Database, config.SSLMode)
+	sessionID, err := generateSecureID()
 	if err != nil {
 		return "", err
 	}
 
-	// Store Password in Map (Thread-safe)
-	mapMutex.Lock()
-	sessionPWDMap[sessionID] = config.Password
-	mapMutex.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), sessionTimeout)
+	defer cancel()
 
+	const query = `INSERT INTO sessions(id, provider, host, port, user, password, database, ssl_mode)
+	               VALUES(?,?,?,?,?,?,?,?)`
+
+	defaultStore.mu.Lock()
+	defer defaultStore.mu.Unlock()
+
+	if _, err := defaultStore.db.ExecContext(ctx, query,
+		sessionID, config.Provider, config.Host, config.Port,
+		config.User, config.Password, config.Database, config.SSLMode,
+	); err != nil {
+		return "", fmt.Errorf("session: failed to store session: %w", err)
+	}
+
+	log.Printf("session: created %s for provider=%s host=%s", sessionID, config.Provider, config.Host)
 	return sessionID, nil
 }
 
-// GetSession retrieves session from SQLite and Map
-func GetSession(sessionIDStr string) (*models.ConnectionConfig, error) {
-	// Get from Map
-	mapMutex.RLock()
-	password, ok := sessionPWDMap[sessionIDStr]
-	mapMutex.RUnlock()
-
-	if !ok {
-		return nil, fmt.Errorf("session not found in memory")
+// GetSession retrieves the connection config associated with sessionID.
+func GetSession(sessionID string) (*models.ConnectionConfig, error) {
+	if defaultStore == nil {
+		return nil, fmt.Errorf("session: store not initialised")
+	}
+	if sessionID == "" {
+		return nil, fmt.Errorf("session: empty session ID")
 	}
 
-	// Get from SQLite
-	id, err := strconv.ParseInt(sessionIDStr, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid session ID format: %w", err)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), sessionTimeout)
+	defer cancel()
 
-	var config models.ConnectionConfig
-	err = sessionDB.QueryRow("SELECT provider, host, port, user, database, ssl_mode FROM sessions WHERE id = ?", id).
-		Scan(&config.Provider, &config.Host, &config.Port, &config.User, &config.Database, &config.SSLMode)
+	const query = `SELECT provider, host, port, user, password, database, ssl_mode
+	               FROM sessions WHERE id = ?`
+
+	defaultStore.mu.RLock()
+	defer defaultStore.mu.RUnlock()
+
+	var cfg models.ConnectionConfig
+	err := defaultStore.db.QueryRowContext(ctx, query, sessionID).Scan(
+		&cfg.Provider, &cfg.Host, &cfg.Port,
+		&cfg.User, &cfg.Password, &cfg.Database, &cfg.SSLMode,
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("session not found in database")
+			return nil, fmt.Errorf("session: not found")
 		}
-		return nil, fmt.Errorf("failed to query session: %w", err)
+		return nil, fmt.Errorf("session: failed to retrieve session: %w", err)
 	}
 
-	config.Password = password
-	return &config, nil
+	return &cfg, nil
+}
+
+// CleanupExpiredSessions removes sessions older than the given duration.
+func CleanupExpiredSessions(olderThan time.Duration) {
+	if defaultStore == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cutoff := time.Now().Add(-olderThan).Format("2006-01-02 15:04:05")
+
+	defaultStore.mu.Lock()
+	defer defaultStore.mu.Unlock()
+
+	res, err := defaultStore.db.ExecContext(ctx, "DELETE FROM sessions WHERE created_at < ?", cutoff)
+	if err != nil {
+		log.Printf("session: cleanup error: %v", err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		log.Printf("session: cleaned up %d expired session(s)", n)
+	}
 }

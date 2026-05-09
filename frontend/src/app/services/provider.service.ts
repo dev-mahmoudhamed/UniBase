@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
-import { ProviderMetadata, ProvidersResponse } from '../models/database.model';
+import { ApiResponse, ProviderMetadata, ProvidersResponse } from '../models/database.model';
 
 @Injectable({
     providedIn: 'root'
@@ -19,16 +19,22 @@ export class ProviderService {
 
     constructor(private http: HttpClient) { }
 
-    loadProviders(): Observable<ProvidersResponse> {
+    loadProviders(): Observable<ApiResponse<ProvidersResponse>> {
         this.loadingSignal.set(true);
-        return this.http.get<ProvidersResponse>(this.baseUrl).pipe(
+        return this.http.get<ApiResponse<ProvidersResponse>>(this.baseUrl).pipe(
             tap(response => {
-                this.providersSignal.set(response.providers);
-                this.versionSignal.set(response.version);
+                if (response.status === 'success' && response.data) {
+                    this.providersSignal.set(response.data.providers || []);
+                    this.versionSignal.set(response.data.version || '');
+                } else {
+                    this.providersSignal.set([]);
+                }
                 this.loadingSignal.set(false);
             })
+
         );
     }
+
 
     getProviderById(id: string): Observable<ProviderMetadata> {
         return this.http.get<ProviderMetadata>(`${this.baseUrl}/${id}`);
@@ -42,8 +48,11 @@ export class ProviderService {
     }
 
     getProvider(id: string): ProviderMetadata | undefined {
-        return this.providersSignal().find(p => p.id === id);
+        const providers = this.providersSignal();
+        if (!Array.isArray(providers)) return undefined;
+        return providers.find(p => p.id === id);
     }
+
 
     getProviderIcon(id: string): string {
         const provider = this.getProvider(id);

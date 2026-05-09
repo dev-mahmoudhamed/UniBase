@@ -1,18 +1,10 @@
 .app-container {
   height: 100vh;
   overflow: hidden;
-  background: var(--bg-primary);
+  background: var(--bg-app);
   display: flex;
   flex-direction: column;
-  max-width: 1440px;
-  margin: 0 auto;
-  border-left: 1px solid var(--border-color);
-  border-right: 1px solid var(--border-color);
-
-  // Ensure inner splits fill height
-  as-split {
-    height: 100% !important;
-  }
+  margin: 0;
 }
 
 .main-content {
@@ -22,19 +14,16 @@
   display: flex;
   flex-direction: column;
 
-  // Allows a single child (e.g. results-viewer in MongoDB mode) to fill the space
   > * {
     flex: 1;
     min-height: 0;
   }
 
-  // as-split manages its own sizing — don't interfere
   > as-split {
     flex: 1;
   }
 }
 
-// Explicit helper for the MongoDB full-height results viewer
 .full-height-viewer {
   display: flex;
   flex-direction: column;
@@ -43,18 +32,44 @@
 }
 
 ::ng-deep {
-  /* Splitter Styling */
+  /* Splitter Styling - Modern & Subtle */
   .as-split-gutter {
-    background: var(--bg-primary) !important;
-    transition: var(--transition-fast);
+    background: #000 !important;
+    transition: var(--transition);
     position: relative;
+    border-left: 1px solid var(--border-dim);
+    border-right: 1px solid var(--border-dim);
 
     &:hover {
-      background: var(--border-color) !important;
+      background: var(--primary-soft) !important;
+      &:after {
+        background: var(--primary);
+        box-shadow: 0 0 10px var(--primary);
+      }
+    }
+
+    /* Subtle indicator line in the gutter */
+    &:after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 2px;
+      height: 40px;
+      background: var(--border-bright);
+      border-radius: var(--radius-full);
+      transition: var(--transition);
     }
   }
 
   .as-split-gutter-icon {
     background-image: none !important;
   }
+
+  .as-vertical .as-split-gutter:after {
+    width: 40px;
+    height: 2px;
+  }
 }
+
