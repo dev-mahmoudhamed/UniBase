@@ -19,6 +19,7 @@ func (c *ConnectionConfig) UnmarshalJSON(data []byte) error {
 	type Alias ConnectionConfig
 	aux := &struct {
 		Database interface{} `json:"database"`
+		Port     interface{} `json:"port"`
 		*Alias
 	}{
 		Alias: (*Alias)(c),
@@ -26,6 +27,7 @@ func (c *ConnectionConfig) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
+
 	if aux.Database != nil {
 		switch v := aux.Database.(type) {
 		case string:
@@ -36,6 +38,19 @@ func (c *ConnectionConfig) UnmarshalJSON(data []byte) error {
 			c.Database = fmt.Sprintf("%v", v)
 		}
 	}
+
+	if aux.Port != nil {
+		switch v := aux.Port.(type) {
+		case float64:
+			c.Port = int(v)
+		case string:
+			var p int
+			if _, err := fmt.Sscanf(v, "%d", &p); err == nil {
+				c.Port = p
+			}
+		}
+	}
+
 	return nil
 }
 

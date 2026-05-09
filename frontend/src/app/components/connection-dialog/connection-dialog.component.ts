@@ -228,9 +228,16 @@ export class ConnectionDialogComponent implements OnInit {
     }
 
     setFieldValue(key: string, value: any): void {
+        const field = this.fields().find(f => f.key === key);
+        let finalValue = value;
+
+        if (field?.type === 'number' && typeof value === 'string') {
+            finalValue = value === '' ? null : Number(value);
+        }
+
         this.connection.update(conn => ({
             ...conn,
-            [key]: value
+            [key]: finalValue
         }));
     }
 }
