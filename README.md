@@ -1,13 +1,15 @@
 # <img src="frontend/src/assets/logo.png" alt="UniBase Logo" width="48" valign="middle" /> UniBase
 
-UniBase provides a unified, web-based interface to connect to and interact with multiple database systems, including PostgreSQL, Microsoft SQL Server, MySQL, MongoDB, and Redis.
+UniBase provides a unified, premium web-based interface to connect to and interact with multiple database systems, including PostgreSQL, Microsoft SQL Server, MySQL, MongoDB.
 
 ## 🚀 Key Features
 
-- **Multi-Database Support**: Connect to and manage multiple different database systems from a single application.
-- **Query Editor**: Write and execute queries using a fully-featured integrated text editor.
-- **Interactive Metadata Explorer**: Deep-dive into your database structure with a dynamic tree view for tables, collections, and schemas.
-- **Connection Management**: Easily add, test, save, and manage multiple database connections.
+- **Multi-Database Support**: Connect to and manage multiple different database systems from a single, unified application.
+- **Modern Design System**: A consistent violet/purple design system with professional aesthetics, dark mode support, and smooth transitions.
+- **Enhanced Query Editor**: Write and execute queries using an integrated Monaco-based editor with syntax highlighting and intelligent formatting.
+- **Interactive Metadata Explorer**: Deep-dive into your database structure with a dynamic tree view for tables, collections, and schemas, powered by Font Awesome icons.
+- **Advanced MongoDB Support**: Specialized MongoDB explorer with field-based autocomplete, simplified query syntax, and optimized pagination for high-performance data browsing.
+- **Connection Management**: Securely add, test, save, and manage multiple database connections with a streamlined interface.
 
 ---
 
@@ -26,7 +28,7 @@ Ensure you have the following installed on your machine:
 1. **Clone the Repository**
 
    ```bash
-   git clone https://github.com/your-username/unibase.git
+   git clone https://github.com/dev-mahmoudhamed/UniBase.git
    cd UniBase
    ```
 
@@ -54,7 +56,8 @@ Ensure you have the following installed on your machine:
 
 ## ℹ️ Important Details
 
-- **How it works**: The launch script builds the Angular frontend placing the artifacts in a structure that the Go backend seamlessly serves while securing database connections.
+- **Architecture**: The application uses a high-performance Go backend to manage database drivers and connections securely, serving an Angular-based frontend for a responsive and intuitive user experience.
+- **Visual Identity**: Integrated Font Awesome and PrimeNG for a modern, accessible UI that adheres to the unified violet design system, ensuring a premium feel across all platforms.
 
 ---
 
