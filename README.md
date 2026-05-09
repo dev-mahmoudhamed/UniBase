@@ -1,6 +1,6 @@
 # <img src="frontend/src/assets/logo.png" alt="UniBase Logo" width="48" valign="middle" /> UniBase
 
-UniBase provides a unified, premium web-based interface to connect to and interact with multiple database systems, including PostgreSQL, Microsoft SQL Server, MySQL, MongoDB, and Redis.
+UniBase provides a unified, premium web-based interface to connect to and interact with multiple database systems, including PostgreSQL, Microsoft SQL Server, MySQL, MongoDB.
 
 ## 🚀 Key Features
 
