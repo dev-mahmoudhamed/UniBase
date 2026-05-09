@@ -2,47 +2,57 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-app);
 }
 
 .editor-header {
-  padding: 10px 16px;
-  background-color: var(--bg-primary);
-  border-bottom: 1px solid var(--border-color);
+  padding: 12px 20px;
+  background-color: rgba(255, 255, 255, 0.01);
+  border-bottom: 1px solid var(--border-dim);
   display: flex;
   justify-content: space-between;
   align-items: center;
   z-index: 10;
+  min-height: 56px;
 }
 
 .connection-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  font-size: var(--size-metadata);
+  gap: 10px;
+  padding: 6px 14px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-full);
+  font-size: 12px;
   color: var(--text-secondary);
+  font-weight: 500;
+  transition: var(--transition);
+
+  &:hover {
+    border-color: var(--primary-border);
+    background-color: var(--bg-card);
+  }
 
   .status-indicator {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
 
     &.connected {
-      background-color: var(--status-success);
-      box-shadow: 0 0 8px var(--status-success);
+      background-color: var(--success);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
     }
 
     &.connecting {
-      background-color: var(--status-warning);
+      background-color: var(--warning);
       animation: pulse 1.5s infinite;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
     }
 
     &.error {
-      background-color: var(--status-error);
+      background-color: var(--error);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
     }
   }
 }
@@ -53,8 +63,8 @@
     opacity: 1;
   }
   50% {
-    transform: scale(1.2);
-    opacity: 0.5;
+    transform: scale(1.3);
+    opacity: 0.6;
   }
   100% {
     transform: scale(1);
@@ -65,6 +75,7 @@
 .editor-container {
   flex: 1;
   position: relative;
+  background-color: #0d0d0f;
 
   ngx-monaco-editor {
     width: 100%;
@@ -75,33 +86,38 @@
 ::ng-deep {
   .monaco-editor {
     .margin {
-      background-color: var(--bg-primary) !important;
+      background-color: #0d0d0f !important;
     }
     .monaco-editor-background {
-      background-color: var(--bg-primary) !important;
+      background-color: #0d0d0f !important;
     }
 
     .line-numbers {
       color: var(--text-muted) !important;
       font-size: 12px !important;
+      opacity: 0.6;
     }
 
     .current-line {
-      background: rgba(255, 255, 255, 0.02) !important;
+      background: rgba(255, 255, 255, 0.03) !important;
       border: none !important;
     }
 
     .selectionHighlight {
-      background: rgba(124, 58, 237, 0.2) !important;
+      background: #3e445166 !important;
     }
 
     .scrollbar .slider {
-      background: var(--border-color) !important;
-      border-radius: 4px !important;
+      background: var(--border-bright) !important;
+      border-radius: 10px !important;
 
       &:hover {
         background: var(--text-muted) !important;
       }
+    }
+
+    .cursor {
+      border-color: var(--primary) !important;
     }
   }
 }

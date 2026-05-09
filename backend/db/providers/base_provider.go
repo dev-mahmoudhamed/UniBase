@@ -12,6 +12,11 @@ import (
 
 type BaseProvider struct{}
 
+func (b *BaseProvider) GetCollectionMetadata(config models.ConnectionConfig, collectionName string, context map[string]string) (models.CollectionMetadata, error) {
+	return models.CollectionMetadata{}, fmt.Errorf("metadata retrieval not implemented for this provider")
+}
+
+
 // TestConnectionWithTimeout tests database connection with a timeout
 func (b *BaseProvider) TestConnectionWithTimeout(db *sql.DB, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

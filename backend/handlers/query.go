@@ -4,13 +4,14 @@ import (
 	"db-server/db/cache"
 	"db-server/db/providers"
 	"db-server/db/utils"
-	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	gocache "github.com/patrickmn/go-cache"
 )
+
 
 type QueryRequest struct {
 	QueryID   string `json:"queryId" binding:"required"`
@@ -44,14 +45,14 @@ func removeDoneChan(queryID string) {
 func ExecuteQuery(c *gin.Context) {
 	var req QueryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, "Invalid request body")
 		return
 	}
 
 	// Get session config early to validate session and build scope
 	config, err := utils.GetSession(req.SessionID)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		Unauthorized(c, "Session expired or invalid")
 		return
 	}
 
@@ -61,16 +62,11 @@ func ExecuteQuery(c *gin.Context) {
 
 	// Check if already in cache and finished
 	if val, found := queryCache.Get(cacheKey); found && val != nil {
-		if errStr, ok := val.(string); ok && len(errStr) > 5 && errStr[:5] == "ERR: " {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  "error",
-				"queryId": req.QueryID,
-				"error":   errStr[5:],
-			})
+		if errStr, ok := val.(string); ok && strings.HasPrefix(errStr, "ERR: ") {
+			InternalError(c, nil, errStr[5:], gin.H{"queryId": req.QueryID})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "success",
+		Success(c, "Results retrieved from cache", gin.H{
 			"queryId": req.QueryID,
 			"results": val,
 		})
@@ -109,26 +105,21 @@ func ExecuteQuery(c *gin.Context) {
 	case <-doneChan:
 		// Re-fetch from cache to see if it was success or error
 		if val, found := queryCache.Get(cacheKey); found && val != nil {
-			if errStr, ok := val.(string); ok && len(errStr) > 5 && errStr[:5] == "ERR: " {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"status":  "error",
-					"queryId": req.QueryID,
-					"error":   errStr[5:],
-				})
+			if errStr, ok := val.(string); ok && strings.HasPrefix(errStr, "ERR: ") {
+				InternalError(c, nil, errStr[5:], gin.H{"queryId": req.QueryID})
 			} else {
-				c.JSON(http.StatusOK, gin.H{
-					"status":  "success",
+				Success(c, "Query executed successfully", gin.H{
 					"queryId": req.QueryID,
 					"results": val,
 				})
 			}
+
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Query finished but no result found"})
+			InternalError(c, nil, "Query finished but no result found")
 		}
 	case <-time.After(30 * time.Second):
-		c.JSON(http.StatusAccepted, gin.H{
-			"message": "query timeout",
-			"queryId": req.QueryID,
-		})
+		Accepted(c, "query timeout", gin.H{"queryId": req.QueryID})
 	}
 }
+
+

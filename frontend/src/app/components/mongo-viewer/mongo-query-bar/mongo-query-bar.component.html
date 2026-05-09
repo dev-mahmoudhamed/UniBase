@@ -1,0 +1,61 @@
+<div class="query-bar" [class.expanded]="isExpanded()">
+  <div class="query-content">
+    <div class="query-row">
+      <div class="input-group main-input">
+        <label>Filter</label>
+        <input type="text" [(ngModel)]="filter" (keyup.enter)="onExecute()" placeholder="{ }"
+               (focus)="focusedInput.set('filter')" (blur)="onFocusOut()">
+        @if (focusedInput() === 'filter' && getSuggestions().length > 0) {
+          <div class="suggestions">
+            @for (col of getSuggestions(); track col) {
+              <span class="suggestion-pill" (mousedown)="$event.preventDefault(); insertSuggestion(col)">{{ col }}</span>
+            }
+          </div>
+        }
+      </div>
+      
+      <div class="actions-group">
+        <button class="btn-run" (click)="onExecute()">
+          <i class="fa-solid fa-play" style="font-size: 10px;"></i>
+          Find
+        </button>
+        <button class="btn-toggle" (click)="toggleExpand()" [title]="isExpanded() ? 'Collapse' : 'Expand Options'">
+          <i class="fa-solid fa-chevron-down" [style.transform]="isExpanded() ? 'rotate(180deg)' : 'rotate(0)'"></i>
+        </button>
+      </div>
+    </div>
+
+    @if (isExpanded()) {
+      <div class="query-row extra-options">
+        <div class="input-group">
+          <label>Project</label>
+          <input type="text" [(ngModel)]="projection" (keyup.enter)="onExecute()" placeholder="{ }"
+                 (focus)="focusedInput.set('projection')" (blur)="onFocusOut()">
+          @if (focusedInput() === 'projection' && getSuggestions().length > 0) {
+            <div class="suggestions">
+              @for (col of getSuggestions(); track col) {
+                <span class="suggestion-pill" (mousedown)="$event.preventDefault(); insertSuggestion(col)">{{ col }}</span>
+              }
+            </div>
+          }
+        </div>
+        <div class="input-group">
+          <label>Sort</label>
+          <input type="text" [(ngModel)]="sort" (keyup.enter)="onExecute()" placeholder="{ }"
+                 (focus)="focusedInput.set('sort')" (blur)="onFocusOut()">
+          @if (focusedInput() === 'sort' && getSuggestions().length > 0) {
+            <div class="suggestions">
+              @for (col of getSuggestions(); track col) {
+                <span class="suggestion-pill" (mousedown)="$event.preventDefault(); insertSuggestion(col)">{{ col }}</span>
+              }
+            </div>
+          }
+        </div>
+        <div class="input-group limit-input">
+          <label>Page Size</label>
+          <input type="number" [(ngModel)]="limit" (keyup.enter)="onExecute()">
+        </div>
+      </div>
+    }
+  </div>
+</div>

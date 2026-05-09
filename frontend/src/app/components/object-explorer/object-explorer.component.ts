@@ -1,13 +1,13 @@
 import { Component, inject, input, effect, signal, output, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Tree, TreeNodeExpandEvent, TreeNodeSelectEvent } from 'primeng/tree';
-import { TooltipModule } from 'primeng/tooltip';
+import { Tree, TreeModule, TreeNodeExpandEvent, TreeNodeSelectEvent } from 'primeng/tree';
+import { CommonModule } from '@angular/common';
 import { ExplorerService, TreeNode } from '../../services/explorer.service';
 
 @Component({
     selector: 'app-object-explorer',
     standalone: true,
-    imports: [Tree, FormsModule, TooltipModule],
+    imports: [FormsModule, CommonModule, TreeModule],
     templateUrl: './object-explorer.component.html',
     styleUrls: ['./object-explorer.component.scss']
 })
@@ -19,15 +19,24 @@ export class ObjectExplorerComponent {
     errorMessage = signal<string | null>(null);
     nodeSelected = output<any>();
     searchQuery = signal('');
+    selectedNode = signal<TreeNode | null>(null);
 
-    // Sorted & filtered view — does NOT spread/clone nodes, only re-orders references
+    tooltip = signal<TooltipState>({
+        visible: false,
+        x: 0,
+        y: 0,
+        loading: false,
+        content: null,
+        nodeKey: null
+    });
+
+    private tooltipHideTimer: ReturnType<typeof setTimeout> | null = null;
+    private fetchedKeys = new Set<string>();
+
     treeNodes = computed(() => {
         const nodes = this.allTreeNodes();
         const query = this.searchQuery().trim().toLowerCase();
-
-        // Process nodes: only sort children of 'database' nodes
         const processed = this.processAndSortNodes(nodes, false);
-
         if (!query) return processed;
         return this.filterNodes(processed, query);
     });
@@ -41,25 +50,19 @@ export class ObjectExplorerComponent {
                 this.loadRootNodes(sid);
             } else {
                 this.allTreeNodes.set([]);
+                this.fetchedKeys.clear();
             }
         });
     }
 
-    /**
-     * Processes nodes WITHOUT cloning them, and ONLY sorts children
-     * if the parent node is of type 'database'.
-     */
     private processAndSortNodes(nodes: TreeNode[], shouldSort: boolean): TreeNode[] {
         let result = [...nodes];
-
         if (shouldSort) {
             result.sort((a, b) => (a.label || '').localeCompare(b.label || ''));
         }
-
         for (const node of result) {
             if (node.children && node.children.length > 0) {
-                const sortChildren = node.type === 'database';
-                node.children = this.processAndSortNodes(node.children, sortChildren);
+                node.children = this.processAndSortNodes(node.children, node.type === 'database');
             }
         }
         return result;
@@ -85,6 +88,7 @@ export class ObjectExplorerComponent {
         this.isLoading.set(true);
         this.errorMessage.set(null);
         this.searchQuery.set('');
+        this.fetchedKeys.clear();
 
         this.explorerService.getChildren(sessionId, 'root').subscribe({
             next: (nodes) => {
@@ -98,22 +102,19 @@ export class ObjectExplorerComponent {
         });
     }
 
-    private updateNodeInSource(nodes: TreeNode[], targetKey: string | undefined, children: TreeNode[], error?: string): boolean {
+    private updateNodeInSource(
+        nodes: TreeNode[],
+        targetKey: string | undefined,
+        children: TreeNode[],
+        error?: string
+    ): boolean {
         if (!targetKey) return false;
         for (const node of nodes) {
             if (node.key === targetKey) {
                 node.loading = false;
-                if (error) {
-                    node.children = [{
-                        key: 'error-' + targetKey,
-                        label: error,
-                        icon: 'pi pi-exclamation-triangle',
-                        leaf: true,
-                        type: 'error'
-                    }];
-                } else {
-                    node.children = children;
-                }
+                node.children = error
+                    ? [{ key: 'error-' + targetKey, label: error, icon: 'pi pi-exclamation-triangle', leaf: true, type: 'error' }]
+                    : children;
                 return true;
             }
             if (node.children && this.updateNodeInSource(node.children, targetKey, children, error)) {
@@ -126,12 +127,8 @@ export class ObjectExplorerComponent {
     onNodeExpand(event: TreeNodeExpandEvent): void {
         const node = event.node;
         const sessionId = this.sessionId();
-
         if (!sessionId || !node) return;
-
-        if (node.children && node.children.length > 0) {
-            return;
-        }
+        if (node.children && node.children.length > 0) return;
 
         const nodeType = node.data?.nodeType || node.type;
         if (!nodeType) return;
@@ -141,7 +138,7 @@ export class ObjectExplorerComponent {
         const context: Record<string, string> = {};
         if (node.data) {
             Object.keys(node.data).forEach(key => {
-                if (key !== 'nodeType') {
+                if (key !== 'nodeType' && key !== 'stats') {
                     context[key] = node.data[key];
                 }
             });
@@ -163,57 +160,116 @@ export class ObjectExplorerComponent {
 
     onNodeSelect(event: TreeNodeSelectEvent): void {
         const node = event.node;
+        this.selectedNode.set(node);
         if (node && !node.leaf) {
             node.expanded = !node.expanded;
-            if (node.expanded) {
+            if (node.expanded && (!node.children || node.children.length === 0)) {
                 this.onNodeExpand({ node } as TreeNodeExpandEvent);
             }
         }
         this.nodeSelected.emit(event);
     }
 
+    onNodeContextMenu(event: any): void {
+        const node = event.node;
+        if (node) {
+            this.selectedNode.set(node);
+            this.nodeSelected.emit(event);
+        }
+    }
+
+    refreshSelectedNode(): void {
+
+        const node = this.selectedNode();
+        console.log("selected not ->", node);
+
+        if (!node) return;
+
+        if (!node.leaf) {
+            node.children = [];
+            node.expanded = false;
+        }
+
+        this.onNodeSelect({ node } as TreeNodeSelectEvent);
+    }
+
     clearSearch(): void {
         this.searchQuery.set('');
     }
 
-    /**
-     * Builds an HTML tooltip for MongoDB collection nodes using real stats
-     * fetched by the backend's collStats command and field sampling.
-     */
-    getMongoTooltip(node: TreeNode): string {
-        if (node.type !== 'collection') return '';
+    onNodeMouseEnter(event: MouseEvent, node: TreeNode): void {
+        const nodeType = node.data?.nodeType || node.type;
+        if (nodeType !== 'collection') return;
 
-        const stats = node.data?.stats;
-
-        // If no stats were returned (e.g. permissions issue), show a minimal tooltip
-        if (!stats || typeof stats !== 'object') {
-            return `<div class="mongo-tooltip">
-                <div class="tooltip-header"><strong>${node.label}</strong></div>
-                <div class="tooltip-row" style="opacity:0.6">Stats unavailable</div>
-            </div>`;
+        if (this.tooltipHideTimer) {
+            clearTimeout(this.tooltipHideTimer);
+            this.tooltipHideTimer = null;
         }
 
-        const count = stats['count'] ?? 0;
-        const size = this.formatSize(stats['size'] ?? 0);
-        const storageSize = this.formatSize(stats['storageSize'] ?? 0);
-        const nindexes = stats['nindexes'] ?? 0;
-        const fields: string[] = Array.isArray(stats['fields']) ? stats['fields'] : [];
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
 
-        const rows: string[] = [];
+        this.tooltip.set({
+            visible: true,
+            x: rect.right + window.scrollX + 8,
+            y: rect.top + window.scrollY,
+            loading: !this.fetchedKeys.has(node.key || ''),
+            content: node.data?.tooltipContent ?? null,
+            nodeKey: node.key ?? null
+        });
 
-        rows.push(`<div class="tooltip-header">
-            <strong>${node.label}</strong> &bull; ${this.formatCount(count)} doc${count !== 1 ? 's' : ''} &bull; ${size}
-        </div>`);
-
-        rows.push(`<div class="tooltip-row">Storage: <strong>${storageSize}</strong></div>`);
-        rows.push(`<div class="tooltip-row">Indexes: <strong>${nindexes}</strong></div>`);
-
-        if (fields.length > 0) {
-            rows.push(`<div class="tooltip-divider"></div>`);
-            rows.push(`<div class="tooltip-fields">Sample fields: ${fields.join(', ')}</div>`);
+        if (!this.fetchedKeys.has(node.key || '')) {
+            this.fetchTooltipData(node);
         }
+    }
 
-        return `<div class="mongo-tooltip">${rows.join('')}</div>`;
+    onNodeMouseLeave(): void {
+        this.tooltipHideTimer = setTimeout(() => {
+            this.tooltip.update(t => ({ ...t, visible: false }));
+        }, 150);
+    }
+
+    private fetchTooltipData(node: TreeNode): void {
+        const sessionId = this.sessionId();
+        if (!sessionId || !node.data?.collection) return;
+
+        this.explorerService
+            .getCollectionMetadata(sessionId, node.data['collection'], { database: node.data['database'] })
+            .subscribe({
+                next: (response) => {
+                    const meta = response?.data?.metadata;
+                    if (!meta) return;
+
+                    const content: TooltipContent = {
+                        name: node.label || '',
+                        count: meta.count ?? 0,
+                        size: meta.size ?? 0,
+                        storageSize: meta.storageSize ?? 0,
+                        indexCount: meta.indexCount ?? 0,
+                        unusedIndices: meta.unusedIndices ?? 0,
+                        avgQueryTime: meta.avgQueryTime ?? 'N/A',
+                        readsPerSec: meta.readsPerSec ?? 0,
+                        writesPerSec: meta.writesPerSec ?? 0,
+                        trend: meta.trend ?? '',
+                        fields: Array.isArray(meta.fields) ? meta.fields : [],
+                        alerts: Array.isArray(meta.alerts) ? meta.alerts : []
+                    };
+
+                    node.data['tooltipContent'] = content;
+                    this.fetchedKeys.add(node.key || '');
+
+                    this.tooltip.update(t =>
+                        t.nodeKey === node.key ? { ...t, loading: false, content } : t
+                    );
+
+                    this.allTreeNodes.set([...this.allTreeNodes()]);
+                },
+                error: () => {
+                    this.fetchedKeys.add(node.key || '');
+                    this.tooltip.update(t =>
+                        t.nodeKey === node.key ? { ...t, loading: false } : t
+                    );
+                }
+            });
     }
 
     formatSize(bytes: number): string {
@@ -229,4 +285,29 @@ export class ObjectExplorerComponent {
         if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K';
         return num.toString();
     }
+}
+
+
+interface TooltipState {
+    visible: boolean;
+    x: number;
+    y: number;
+    loading: boolean;
+    content: TooltipContent | null;
+    nodeKey: string | null;
+}
+
+interface TooltipContent {
+    name: string;
+    count: number;
+    size: number;
+    storageSize: number;
+    indexCount: number;
+    unusedIndices: number;
+    avgQueryTime: string;
+    readsPerSec: number;
+    writesPerSec: number;
+    trend: string;
+    fields: string[];
+    alerts: string[];
 }

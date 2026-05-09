@@ -72,25 +72,38 @@ export class QueryEditorComponent {
                 base: 'vs-dark',
                 inherit: true,
                 rules: [
+                    { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
                     { token: 'keyword', foreground: 'c678dd', fontStyle: 'bold' },
                     { token: 'string', foreground: '98c379' },
                     { token: 'number', foreground: 'd19a66' },
-                    { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
+                    { token: 'operator', foreground: '56b6c2' },
                     { token: 'identifier', foreground: '61afef' },
-                    { token: 'operator', foreground: '56b6c2' }
+                    { token: 'type', foreground: 'e5c07b' },
+                    { token: 'function', foreground: '61afef', fontStyle: 'bold' },
+                    { token: 'variable', foreground: 'e06c75' },
+                    { token: 'constant', foreground: 'd19a66' },
+                    { token: 'string.escape', foreground: '56b6c2' },
                 ],
                 colors: {
-                    'editor.background': '#1e2227',
-                    'editor.foreground': '#abb2bf',
-                    'editor.lineHighlightBackground': '#2c313a',
-                    'editor.selectionBackground': '#3e4451',
-                    'editorCursor.foreground': '#528bff',
-                    'editorWhitespace.foreground': '#3b4048',
-                    'editorIndentGuide.background': '#3b4048',
-                    'editorIndentGuide.activeBackground': '#c678dd'
+                    'editor.background': '#0d0d0f',           // Near-black background
+                    'editor.foreground': '#abb2bf',           // One Dark text
+                    'editorLineNumber.foreground': '#4b4b4f', // Muted line numbers
+                    'editorLineNumber.activeForeground': '#abb2bf',
+                    'editor.selectionBackground': '#3e445166', // Subtle selection
+                    'editor.lineHighlightBackground': '#161618', // Very subtle line highlight
+                    'editorCursor.foreground': '#a78bfa',     // Violet cursor
+                    'editor.findMatchBackground': '#42557b',
+                    'editorBracketMatch.background': '#515a6b',
+                    'editorBracketMatch.border': '#888888',
+                    'editorGutter.background': '#0d0d0f',
                 }
             });
             monaco.editor.setTheme('unibase-dark');
+
+            // Utilizing the 'editor' parameter to add a keybinding
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+                this.onExecute();
+            });
         }
     }
 

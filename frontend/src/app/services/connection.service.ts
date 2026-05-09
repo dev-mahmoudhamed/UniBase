@@ -65,11 +65,13 @@ export class ConnectionService {
         if (connection) {
             this.isLoadingMetadataSignal.set(true);
             try {
-                const response = await firstValueFrom(this.queryService.initializeConnection(connection));
-                if (response?.session_id) {
-                    this.sessionIdSignal.set(response.session_id);
-                    sessionStorage.setItem('db_session_id', response.session_id);
+                const response = await firstValueFrom(this.queryService.initializeConnection(connection)) as any;
+                const data = response?.data;
+                if (data?.session_id) {
+                    this.sessionIdSignal.set(data.session_id);
+                    sessionStorage.setItem('db_session_id', data.session_id);
                 }
+
             } catch (error) {
                 console.error('Failed to initialize connection session', error);
                 this.sessionIdSignal.set(null);

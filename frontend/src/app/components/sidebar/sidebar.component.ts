@@ -1,4 +1,6 @@
-import { Component, inject, input, output, signal, HostListener } from '@angular/core';
+import { Component, inject, input, output, signal, HostListener, ViewChild } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ConnectionService } from '../../services/connection.service';
 import { ProviderService } from '../../services/provider.service';
 import { ExplorerService, MongoCollectionData } from '../../services/explorer.service';
@@ -8,7 +10,7 @@ import { ObjectExplorerComponent } from '../object-explorer/object-explorer.comp
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [ObjectExplorerComponent],
+  imports: [ObjectExplorerComponent, CommonModule, FormsModule],
   templateUrl: './sidebar.component.html',
   styleUrls: ['./sidebar.component.scss']
 })
@@ -17,6 +19,8 @@ export class SidebarComponent {
   private providerService = inject(ProviderService);
   private explorerService = inject(ExplorerService);
 
+  @ViewChild(ObjectExplorerComponent) explorer?: ObjectExplorerComponent;
+
   toggleSidebar = output<void>();
   openConnectionDialog = output<void>();
   editConnectionEvent = output<DatabaseConnection>();
@@ -24,19 +28,21 @@ export class SidebarComponent {
   redisKeySelected = output<{ database: string; key: string }>();
   isCollapsed = input(false);
 
-  // Signals
   connections = this.connectionService.connections;
   activeConnection = this.connectionService.activeConnection;
-
-  // Session & Metadata State
   sessionId = this.connectionService.sessionId;
   isLoadingMetadata = this.connectionService.isLoadingMetadata;
 
-  // Context menu state
   contextMenuVisible = signal(false);
   contextMenuX = signal(0);
   contextMenuY = signal(0);
   contextMenuConnection = signal<DatabaseConnection | null>(null);
+
+  // Rename Dialog State
+  showRenameDialog = signal(false);
+  renameValue = signal('');
+  renameTitle = signal('');
+  private renameTarget: { type: 'connection' | 'node', data: any } | null = null;
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -75,19 +81,10 @@ export class SidebarComponent {
     return this.activeConnection()?.id === connection.id;
   }
 
-  isMongo(connection: DatabaseConnection): boolean {
-    return connection.provider === DatabaseProvider.MONGODB;
-  }
-
-  isRedis(connection: DatabaseConnection): boolean {
-    return connection.provider === DatabaseProvider.REDIS;
-  }
-
   getProviderIcon(provider: string): string {
     return this.providerService.getProviderIcon(provider?.toLowerCase());
   }
 
-  // Context menu
   onRightClick(event: MouseEvent, connection: DatabaseConnection): void {
     event.preventDefault();
     event.stopPropagation();
@@ -99,22 +96,49 @@ export class SidebarComponent {
 
   editConnection(): void {
     const conn = this.contextMenuConnection();
-    if (conn) {
-      this.editConnectionEvent.emit(conn);
-    }
+    if (conn) this.editConnectionEvent.emit(conn);
     this.contextMenuVisible.set(false);
   }
 
   renameConnection(): void {
     const conn = this.contextMenuConnection();
-    if (conn) {
-      const newName = prompt('Enter new name:', conn.name);
-      if (newName !== null && newName.trim() !== '') {
-        const updatedConn = { ...conn, name: newName.trim() };
-        this.connectionService.updateConnection(updatedConn);
-      }
+    if (!conn) return;
+
+    // Check if we should rename a node in the explorer instead
+    const node = this.isActive(conn) ? this.explorer?.selectedNode() : null;
+
+    if (node) {
+      this.renameValue.set(node.label || '');
+      this.renameTitle.set(`Rename ${node.type || 'Item'}`);
+      this.renameTarget = { type: 'node', data: node };
+    } else {
+      this.renameValue.set(conn.name);
+      this.renameTitle.set('Rename Connection');
+      this.renameTarget = { type: 'connection', data: conn };
     }
+
+    this.showRenameDialog.set(true);
     this.contextMenuVisible.set(false);
+  }
+
+  confirmRename(): void {
+    const newName = this.renameValue().trim();
+    if (!this.renameTarget || !newName) {
+      this.showRenameDialog.set(false);
+      return;
+    }
+
+    if (this.renameTarget.type === 'connection') {
+      this.connectionService.updateConnection({ ...this.renameTarget.data, name: newName });
+    } else if (this.renameTarget.type === 'node') {
+      // Logic for renaming a node in the explorer (e.g., collection/table)
+      // Note: Backend support for this might be needed for persistent changes
+      this.renameTarget.data.label = newName;
+      // You might want to trigger a refresh or emit a rename event here
+    }
+
+    this.showRenameDialog.set(false);
+    this.renameTarget = null;
   }
 
   deleteFromContextMenu(): void {
@@ -128,12 +152,16 @@ export class SidebarComponent {
   refreshFromContextMenu(): void {
     const conn = this.contextMenuConnection();
     if (conn) {
-      this.connectionService.setActiveConnection(conn);
+      if (this.isActive(conn) && this.explorer && this.explorer.selectedNode()) {
+        this.explorer.refreshSelectedNode();
+      } else {
+        this.connectionService.setActiveConnection(conn);
+      }
     }
     this.contextMenuVisible.set(false);
   }
 
-  // Handle node click from object explorer
+
   onNodeSelected(event: any): void {
     const node = event.node;
     if (!node) return;
@@ -143,40 +171,31 @@ export class SidebarComponent {
 
     const nodeType = node.data?.nodeType || node.type;
 
-    // Redis key selected
     if (connection.provider === DatabaseProvider.REDIS && nodeType === 'key') {
       const database = node.data?.database || '0';
       const key = node.data?.key;
-      if (key) {
-        this.redisKeySelected.emit({ database, key });
-      }
+      if (key) this.redisKeySelected.emit({ database, key });
       return;
     }
 
-    // MongoDB collection selected
     if (connection.provider !== DatabaseProvider.MONGODB) return;
 
     if (nodeType === 'collection' || nodeType === 'table') {
       const sessionId = this.sessionId();
       if (!sessionId) return;
 
-      // Only include primitive (string/number) values in context.
-      // Nested objects like `stats` would break the backend's map[string]string binding,
-      // causing a 400 "Invalid request body" error.
       const context: Record<string, string> = {};
       if (node.data) {
         Object.keys(node.data).forEach((key: string) => {
           const val = node.data[key];
-          if (key !== 'nodeType' && (typeof val === 'string' || typeof val === 'number')) {
+          if (key !== 'nodeType' && key !== 'stats' && key !== 'tooltipContent' &&
+            (typeof val === 'string' || typeof val === 'number')) {
             context[key] = String(val);
           }
         });
       }
 
       const database = context['database'] || '';
-      // Use the collection name from node.data (set explicitly by the backend as the
-      // raw collection name). node.label can carry unexpected values depending on the
-      // PrimeNG tree version, so this is the authoritative source.
       const collectionName = context['collection'] || node.label || '';
 
       this.explorerService.getCollectionData(sessionId, collectionName, context).subscribe({
@@ -185,19 +204,13 @@ export class SidebarComponent {
             collection: collectionName,
             database,
             documents: data.documents ?? [],
+            columns: data.columns ?? [],
             count: data.count ?? 0
           };
           this.collectionSelected.emit(enriched);
         },
-        error: (err: any) => {
-          // Even on error emit so the app still auto-populates the query editor
-          this.collectionSelected.emit({
-            collection: collectionName,
-            database,
-            documents: [],
-            count: 0
-          });
-          console.error('Failed to fetch collection data', err);
+        error: () => {
+          this.collectionSelected.emit({ collection: collectionName, database, documents: [], columns: [], count: 0 });
         }
       });
     }

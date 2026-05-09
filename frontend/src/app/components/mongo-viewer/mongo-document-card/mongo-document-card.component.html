@@ -1,0 +1,43 @@
+<div class="document-card" [class.dirty]="isDirty()">
+  <div class="card-header">
+    <div class="header-left">
+      <span class="doc-id">_id: {{ docId() }}</span>
+    </div>
+    <div class="header-right">
+      @if (hasMoreFields() && !isExpanded()) {
+        <button class="btn-more" (click)="toggleExpand()">
+          {{ documentKeys().length - 15 }} more fields...
+        </button>
+      }
+      @if (isDirty()) {
+        <span class="dirty-badge">Unsaved Changes</span>
+      }
+    </div>
+  </div>
+  
+  <div class="editor-container" [style.height.px]="editorHeight()">
+    <ngx-monaco-editor 
+      [options]="editorOptions" 
+      [(ngModel)]="editedJson">
+    </ngx-monaco-editor>
+  </div>
+
+  <div class="card-actions">
+    <button class="btn btn-save" (click)="onSave()" [disabled]="!isDirty() || isSaving() || isTruncated()">
+      @if (isSaving()) {
+        <span class="spinner"></span>
+        Saving...
+      } @else {
+        Save Changes
+      }
+    </button>
+    <button class="btn btn-reset" (click)="onReset()" [disabled]="!isDirty() || isSaving()">
+      Reset
+    </button>
+    @if (hasMoreFields()) {
+      <button class="btn btn-toggle" (click)="toggleExpand()">
+        {{ isExpanded() ? 'Show Less' : 'Show All Fields' }}
+      </button>
+    }
+  </div>
+</div>
