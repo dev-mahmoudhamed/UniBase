@@ -1,4 +1,4 @@
-# <img src="frontend/public/favicon.ico" alt="UniBase Logo" width="48" valign="middle" /> UniBase
+# <img src="frontend/src/assets/logo.png" alt="UniBase Logo" width="48" valign="middle" /> UniBase
 
 UniBase provides a unified, premium web-based interface to connect to and interact with multiple database systems, including PostgreSQL, Microsoft SQL Server, MySQL, MongoDB, and Redis.
 
@@ -64,4 +64,3 @@ Ensure you have the following installed on your machine:
 ## 📄 License
 
 This project is licensed under the MIT License.
-
