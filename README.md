@@ -54,13 +54,6 @@ Ensure you have the following installed on your machine:
 
 ---
 
-## ℹ️ Important Details
-
-- **Architecture**: The application uses a high-performance Go backend to manage database drivers and connections securely, serving an Angular-based frontend for a responsive and intuitive user experience.
-- **Visual Identity**: Integrated Font Awesome and PrimeNG for a modern, accessible UI that adheres to the unified violet design system, ensuring a premium feel across all platforms.
-
----
-
 ## 📄 License
 
 This project is licensed under the MIT License.
