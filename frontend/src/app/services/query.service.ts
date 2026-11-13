@@ -27,4 +27,8 @@ export class QueryService {
             query
         });
     }
+
+    cancelQuery(sessionId: string, queryId: string): Observable<ApiResponse> {
+        return this.http.post<ApiResponse>(`${this.queryBaseUrl}/cancel`, { sessionId, queryId });
+    }
 }

@@ -11,9 +11,9 @@ import { RedisViewerComponent } from './components/redis-viewer/redis-viewer.com
 import { MongoViewerComponent } from './components/mongo-viewer/mongo-viewer.component';
 import { QueryService } from './services/query.service';
 import { ConnectionService } from './services/connection.service';
+import { ProviderService } from './services/provider.service';
 import { MongoCollectionData } from './services/explorer.service';
-import { hashQueryId } from './utils/hash.utils';
-import { DatabaseConnection, DatabaseProvider, QueryResult, QueryError } from './models/database.model';
+import { DatabaseConnection, DatabaseProvider, QueryResult, QueryError, envLabel } from './models/database.model';
 
 @Component({
   selector: 'app-root',
@@ -47,6 +47,27 @@ export class AppComponent {
 
   private queryService = inject(QueryService);
   private connectionService = inject(ConnectionService);
+  private providerService = inject(ProviderService);
+
+  envLabel = envLabel;
+  activeConnection = this.connectionService.activeConnection;
+  isProd = computed(() => this.activeConnection()?.environment === 'prod');
+  engineColor = computed(() => {
+    const conn = this.activeConnection();
+    return conn ? `var(--eng-${conn.provider})` : 'transparent';
+  });
+  engineName = computed(() => {
+    const conn = this.activeConnection();
+    return conn ? this.providerService.getProvider(conn.provider)?.displayName ?? conn.provider : '';
+  });
+  runStatus = computed(() => {
+    if (this.isLoadingQuery()) return 'Running…';
+    const r = this.queryResult();
+    if (!r || !('resultSets' in r)) return '';
+    const sets = r.resultSets;
+    const what = sets.length === 1 ? `${sets[0].rowCount} rows` : `${sets.length} result sets`;
+    return `${what} in ${r.executionTime} ms`;
+  });
 
   isMongoConnection = computed(() => {
     const conn = this.connectionService.activeConnection();
@@ -79,29 +100,25 @@ export class AppComponent {
 
   onCollectionSelected(data: MongoCollectionData): void {
     this.selectedCollectionData.set(data);
-
-    // if (this.isMongoConnection()) {
-    //   const defaultQuery = `db.${data.collection}.find()`;
-    //   this.currentQueryText.set(defaultQuery);
-
-    //   const sessionId = this.connectionService.sessionId();
-    //   if (sessionId) {
-    //     this.executeQuery({
-    //       query: defaultQuery,
-    //       queryId: hashQueryId(defaultQuery),
-    //       sessionId
-    //     });
-    //   }
-    // }
   }
 
   onRedisKeySelected(event: { database: string; key: string }): void {
     this.selectedRedisKey.set({ ...event });
   }
 
+  private runningQuery: { sessionId: string; queryId: string } | null = null;
+
+  cancelQuery(): void {
+    if (!this.runningQuery) return;
+    const { sessionId, queryId } = this.runningQuery;
+    // The pending execute request then answers "Query cancelled".
+    this.queryService.cancelQuery(sessionId, queryId).subscribe({ error: () => { } });
+  }
+
   executeQuery(event: { query: string; queryId: string; sessionId: string }): void {
     const { query, queryId, sessionId } = event;
 
+    this.runningQuery = { sessionId, queryId };
     this.isLoadingQuery.set(true);
     this.queryResult.set(null);
 
@@ -110,7 +127,7 @@ export class AppComponent {
         if (response?.message === 'query timeout' || response?.status === 'accepted') {
           return timer(2000).pipe(
             concatMap(() => this.queryService.executeQuery(sessionId, queryId, query).pipe(
-              catchError(err => of({ status: 'error', error: err?.message || 'Polling failed' } as any))
+              catchError(err => of({ status: 'error', error: err?.error?.error || err?.message || 'Polling failed' } as any))
             ))
           );
         }
@@ -130,11 +147,13 @@ export class AppComponent {
           this.queryResult.set({ message: response.message || 'Unknown response from server' });
         }
         this.isLoadingQuery.set(false);
+        this.runningQuery = null;
       },
       error: (err) => {
         const errorMsg = err?.error?.error || err?.message || 'An error occurred while executing the query';
         this.queryResult.set({ message: errorMsg });
         this.isLoadingQuery.set(false);
+        this.runningQuery = null;
       }
     });
   }

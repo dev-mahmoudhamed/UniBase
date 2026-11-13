@@ -1,32 +1,43 @@
 <div class="query-editor">
     <div class="editor-header">
         <div class="connection-pill">
-            @if (activeConnection() && sessionId()) {
-            <span class="status-indicator connected"></span>
-            <span>{{ activeConnection()?.name }}</span>
-            } @else if (activeConnection() && isLoadingMetadata()) {
-            <span class="status-indicator connecting"></span>
-            <span>Connecting...</span>
-            } @else if (activeConnection()) {
-            <span class="status-indicator error"></span>
-            <span>Connection failed</span>
+            @if (activeConnection(); as conn) {
+            <span class="engine-dot"></span>
+            <span>{{ conn.name }}</span>
+            @if (isLoadingMetadata()) {
+            <span class="pill-note">Connecting…</span>
+            } @else if (!sessionId()) {
+            <span class="pill-note error">Not connected</span>
+            }
             } @else {
-            <span class="status-indicator"></span>
+            <span class="engine-dot"></span>
             <span>No connection selected</span>
             }
         </div>
 
-        <!-- Language badge -->
-        <!-- <span class="language-badge" [class.json]="editorLanguage() === 'json'">
-            {{ editorLanguage().toUpperCase() }}
-        </span> -->
-
-        <button class="btn btn-primary" (click)="onExecute()" [disabled]="!activeConnection() || !sessionId()"
-            title="Execute (Ctrl+Enter)">
+        @if (running()) {
+        <button class="btn btn-secondary" (click)="cancelQuery.emit()" title="Stop the running query">
+            <i class="fa-solid fa-stop"></i>
+            Cancel
+        </button>
+        } @else {
+        <button class="btn btn-run" (click)="onExecute()" [disabled]="!activeConnection() || !sessionId()"
+            title="Run the selection, or the whole script (Ctrl+Enter)">
             <i class="fa-solid fa-play"></i>
             Run
         </button>
+        }
     </div>
+
+    @if (confirmProd()) {
+    <div class="editor-bar prod" role="alert">
+        <span><strong>Production.</strong> This script changes data or schema on {{ activeConnection()?.name }}.</span>
+        <button class="btn btn-secondary" (click)="confirmProd.set(false)">Cancel</button>
+        <button class="btn btn-danger" (click)="onExecute(true)">Run on Prod</button>
+    </div>
+    } @else if (notice()) {
+    <div class="editor-bar">{{ notice() }}</div>
+    }
 
     <div class="editor-container">
         <ngx-monaco-editor [options]="editorOptions" [ngModel]="queryText()" (ngModelChange)="queryText.set($event)"

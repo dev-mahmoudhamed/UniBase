@@ -32,7 +32,7 @@ func GetExplorerChildren(c *gin.Context) {
 
 	nodes, err := provider.GetExplorerChildren(*config, req.NodeType, req.Context)
 	if err != nil {
-		InternalError(c, err, "Failed to load explorer nodes")
+		InternalError(c, err, "Failed to load explorer nodes: "+sanitizeError(err))
 		return
 	}
 
@@ -68,7 +68,7 @@ func GetCollectionData(c *gin.Context) {
 
 	data, totalCount, err := collProvider.GetCollectionData(*config, req.CollectionName, req.Context, req.Filter, req.Projection, req.Sort, req.Skip, req.Limit)
 	if err != nil {
-		InternalError(c, err, "Failed to retrieve collection data")
+		InternalError(c, err, "Failed to retrieve collection data: "+sanitizeError(err))
 		return
 	}
  

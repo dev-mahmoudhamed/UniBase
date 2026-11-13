@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -45,6 +45,9 @@ export interface MongoCollectionData {
 })
 export class ExplorerService {
     private baseUrl = '/api/explorer';
+
+    /** Key of a tree node whose children changed (e.g. a Redis key was renamed); the explorer reloads it. */
+    readonly staleNode = signal<string | null>(null);
     private mongoBaseUrl = '/api/mongo';
  
     constructor(private http: HttpClient) { }
@@ -104,19 +107,23 @@ export class ExplorerService {
 
 
 
+    /**
+     * Saves changed top-level fields. `id` and `changes` stay in the relaxed
+     * Extended JSON form the server sent (e.g. {"$oid": "..."}), so types round-trip.
+     */
     updateMongoDocument(
         sessionId: string,
         database: string,
         collection: string,
-        objectId: string,
-        properties: Record<string, any>
+        id: unknown,
+        changes: Record<string, unknown>
     ): Observable<{ message: string }> {
         return this.http.post<{ message: string }>(`${this.mongoBaseUrl}/document/update`, {
             sessionId,
             database,
             collection,
-            objectId,
-            properties
+            id,
+            changes
         });
     }
 

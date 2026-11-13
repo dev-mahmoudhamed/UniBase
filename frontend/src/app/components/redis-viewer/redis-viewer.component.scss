@@ -9,7 +9,7 @@
 // Header
 .viewer-header {
   padding: 14px 20px;
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--text-primary) 1%, transparent);
   border-bottom: 1px solid var(--border-dim);
   display: flex;
   justify-content: space-between;
@@ -54,9 +54,10 @@
 }
 
 .type-badge {
-  background: var(--primary-soft);
-  color: var(--primary-hover);
-  border-color: var(--primary-border);
+  --type: var(--primary);
+  color: var(--type);
+  background: color-mix(in srgb, var(--type) 10%, transparent);
+  border-color: color-mix(in srgb, var(--type) 30%, transparent);
 }
 
 .ttl-badge {
@@ -69,8 +70,8 @@
 
 .db-badge {
   color: var(--info);
-  background: rgba(14, 165, 233, 0.1);
-  border-color: rgba(14, 165, 233, 0.2);
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+  border-color: color-mix(in srgb, var(--info) 20%, transparent);
 }
 
 // Alerts
@@ -85,15 +86,15 @@
   animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
   &.alert-error {
-    background: rgba(239, 68, 68, 0.08);
+    background: color-mix(in srgb, var(--error) 8%, transparent);
     color: var(--error);
-    border-bottom: 1px solid rgba(239, 68, 68, 0.1);
+    border-bottom: 1px solid color-mix(in srgb, var(--error) 10%, transparent);
   }
 
   &.alert-success {
-    background: rgba(16, 185, 129, 0.08);
+    background: color-mix(in srgb, var(--success) 8%, transparent);
     color: var(--success);
-    border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+    border-bottom: 1px solid color-mix(in srgb, var(--success) 10%, transparent);
   }
 }
 
@@ -118,11 +119,9 @@
 
 .field-label {
   display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--primary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -191,7 +190,7 @@
   transition: var(--transition);
 
   &:hover {
-    background: rgba(139, 92, 246, 0.2);
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
     border-color: var(--primary);
     color: var(--primary-hover);
   }
@@ -204,7 +203,7 @@
   line-height: 1.6;
   font-size: 13px;
   tab-size: 2;
-  background-color: #0d0d0f;
+  background-color: var(--bg-editor);
   border: 1px solid var(--border-bright);
   border-radius: var(--radius-lg);
   padding: 16px;
@@ -227,7 +226,7 @@
   align-items: center;
   padding: 16px 20px;
   border-top: 1px solid var(--border-dim);
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--text-primary) 1%, transparent);
   flex-shrink: 0;
 }
 
@@ -267,10 +266,10 @@
 .btn-delete {
   background: transparent;
   color: var(--error);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid color-mix(in srgb, var(--error) 20%, transparent);
 
   &:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.08);
+    background: color-mix(in srgb, var(--error) 8%, transparent);
     border-color: var(--error);
   }
 }
@@ -330,7 +329,7 @@
     border-top-color: var(--primary);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
-    box-shadow: 0 0 15px rgba(139, 92, 246, 0.1);
+    box-shadow: 0 0 15px color-mix(in srgb, var(--primary) 10%, transparent);
     margin-bottom: 8px;
   }
 

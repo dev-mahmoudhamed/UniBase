@@ -110,6 +110,12 @@ export class MongoViewerComponent {
     }
   }
 
+  /** Stable key for @for tracking; _id may be an object such as {"$oid": "..."}. */
+  docKey(doc: Record<string, any>, index: number): string {
+    const id = doc['_id'];
+    return id === undefined ? `#${index}` : JSON.stringify(id);
+  }
+
   getPagingRange(): string {
     const total = this.currentCount();
     if (total === 0) return '0 – 0';
@@ -126,9 +132,9 @@ export class MongoViewerComponent {
 
     if (!sessionId || !data || !originalDoc) return;
 
-    const objectId = String(originalDoc['_id'] ?? '');
-    if (!objectId) {
-      this.errorMessage.set('Document has no _id — cannot update.');
+    const id = originalDoc['_id'];
+    if (id === undefined || id === null) {
+      this.errorMessage.set('This document has no _id, so it cannot be updated.');
       return;
     }
 
@@ -149,7 +155,7 @@ export class MongoViewerComponent {
 
     this.isLoading.set(true);
     this.explorerService
-      .updateMongoDocument(sessionId, data.database, data.collection, objectId, changes)
+      .updateMongoDocument(sessionId, data.database, data.collection, id, changes)
       .subscribe({
         next: () => {
           const updatedDocs = [...this.localDocuments()];

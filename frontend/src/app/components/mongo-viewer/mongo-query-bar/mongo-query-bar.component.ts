@@ -87,7 +87,10 @@ export class MongoQueryBarComponent {
       try {
         const parsed = new Function('ObjectId', 'ISODate', 'return ' + cleanStr)(
           function(id: string) { return { $oid: id }; },
-          function(date: string) { return { $date: date }; }
+          function(date?: string) {
+            const d = date === undefined ? new Date() : new Date(date);
+            return { $date: isNaN(d.getTime()) ? date : d.toISOString() };
+          }
         );
         return JSON.stringify(parsed);
       } catch {

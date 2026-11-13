@@ -1,23 +1,14 @@
 package handlers
 
 import (
-	"context"
 	"db-server/db/providers"
 	"db-server/models"
 	"log"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
-
-const connectionTimeout = 15 * time.Second
-
-// connectionRequest is the validated input for both test and initialize.
-type connectionRequest struct {
-	models.ConnectionConfig
-}
 
 // bindAndResolveProvider centralises JSON binding, basic field validation,
 // and provider resolution. Returns false (and writes the HTTP error) on failure.
@@ -65,46 +56,38 @@ func sanitizeError(err error) string {
 	return msg
 }
 
-// mapConnectionError converts low-level driver errors to user-friendly messages
-// and picks the appropriate HTTP status code.
+// mapConnectionError picks a status and a short hint, and always includes the
+// first line of the driver's message so the user can see what actually failed.
 func mapConnectionError(c *gin.Context, err error) {
 	if err == nil {
 		return
 	}
-	msg := strings.ToLower(err.Error())
+	detail := sanitizeError(err)
+	msg := strings.ToLower(detail)
 
+	status, hint := http.StatusInternalServerError, "Could not connect"
 	switch {
-	case strings.Contains(msg, "access denied"),
+	case strings.Contains(msg, "password authentication failed"),
+		strings.Contains(msg, "login failed"),
+		strings.Contains(msg, "access denied"),
 		strings.Contains(msg, "authentication failed"),
-		strings.Contains(msg, "invalid credentials"),
-		strings.Contains(msg, "password"):
-		c.JSON(http.StatusUnauthorized, APIResponse{
-			Status: "error",
-			Error:  "Authentication failed — check your username and password",
-		})
-
+		strings.Contains(msg, "wrongpass"), // Redis
+		strings.Contains(msg, "noauth"):    // Redis
+		status, hint = http.StatusUnauthorized, "Authentication failed, check the username and password"
 	case strings.Contains(msg, "no such host"),
 		strings.Contains(msg, "connection refused"),
+		strings.Contains(msg, "actively refused"), // Windows wording
 		strings.Contains(msg, "timeout"),
-		strings.Contains(msg, "i/o timeout"),
-		strings.Contains(msg, "network"):
-		c.JSON(http.StatusBadGateway, APIResponse{
-			Status: "error",
-			Error:  "Server unreachable — check host, port, and network connectivity",
-		})
-
+		strings.Contains(msg, "server selection"):
+		status, hint = http.StatusBadGateway, "Server unreachable, check host, port and network"
 	case strings.Contains(msg, "unknown database"),
-		strings.Contains(msg, "database") && strings.Contains(msg, "not exist"):
-		BadRequest(c, "Database does not exist — check the database name")
-
-	default:
-		// Do NOT leak the raw driver error; log it server-side only.
-		log.Printf("connection: unexpected error: %v", err)
-		c.JSON(http.StatusInternalServerError, APIResponse{
-			Status: "error",
-			Error:  "Could not establish connection — check your connection settings",
-		})
+		strings.Contains(msg, "does not exist"),
+		strings.Contains(msg, "cannot open database"):
+		status, hint = http.StatusBadRequest, "Database not found, check the database name"
 	}
+
+	log.Printf("connection: %v", err)
+	c.JSON(status, APIResponse{Status: "error", Error: hint + ": " + detail})
 }
 
 // TestConnection validates credentials without persisting a session.
@@ -113,10 +96,6 @@ func TestConnection(c *gin.Context) {
 	if !ok {
 		return
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
-	defer cancel()
-	_ = ctx // providers use their own internal context; passed for documentation
 
 	log.Printf("connection: test requested for provider=%s host=%s", cfg.Provider, cfg.Host)
 

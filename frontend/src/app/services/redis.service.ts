@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 export interface RedisKeyValueResponse {
     key: string;
@@ -16,7 +16,8 @@ export interface RedisKeyUpdateRequest {
     oldKey: string;
     newKey: string;
     value: string;
-    ttl: number;
+    /** null keeps the current expiry, -1 removes it, >0 sets it in seconds */
+    ttl: number | null;
 }
 
 @Injectable({
@@ -28,11 +29,11 @@ export class RedisService {
     constructor(private http: HttpClient) { }
 
     getKeyValue(sessionId: string, database: string, key: string): Observable<RedisKeyValueResponse> {
-        return this.http.post<RedisKeyValueResponse>(`${this.baseUrl}/key/get`, {
+        return this.http.post<{ data: RedisKeyValueResponse }>(`${this.baseUrl}/key/get`, {
             sessionId,
             database,
             key
-        });
+        }).pipe(map(response => response.data));
     }
 
     updateKeyValue(request: RedisKeyUpdateRequest): Observable<any> {

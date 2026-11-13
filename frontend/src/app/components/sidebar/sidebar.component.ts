@@ -6,6 +6,8 @@ import { ProviderService } from '../../services/provider.service';
 import { ExplorerService, MongoCollectionData } from '../../services/explorer.service';
 import { DatabaseConnection, DatabaseProvider } from '../../models/database.model';
 import { ObjectExplorerComponent } from '../object-explorer/object-explorer.component';
+import { ThemeService } from '../../services/theme.service';
+import { envLabel } from '../../models/database.model';
 
 @Component({
   selector: 'app-sidebar',
@@ -18,6 +20,8 @@ export class SidebarComponent {
   private connectionService = inject(ConnectionService);
   private providerService = inject(ProviderService);
   private explorerService = inject(ExplorerService);
+  theme = inject(ThemeService);
+  envLabel = envLabel;
 
   @ViewChild(ObjectExplorerComponent) explorer?: ObjectExplorerComponent;
 
@@ -32,6 +36,7 @@ export class SidebarComponent {
   activeConnection = this.connectionService.activeConnection;
   sessionId = this.connectionService.sessionId;
   isLoadingMetadata = this.connectionService.isLoadingMetadata;
+  connectionError = this.connectionService.connectionError;
 
   contextMenuVisible = signal(false);
   contextMenuX = signal(0);
@@ -42,7 +47,7 @@ export class SidebarComponent {
   showRenameDialog = signal(false);
   renameValue = signal('');
   renameTitle = signal('');
-  private renameTarget: { type: 'connection' | 'node', data: any } | null = null;
+  private renameTarget: DatabaseConnection | null = null;
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -104,19 +109,9 @@ export class SidebarComponent {
     const conn = this.contextMenuConnection();
     if (!conn) return;
 
-    // Check if we should rename a node in the explorer instead
-    const node = this.isActive(conn) ? this.explorer?.selectedNode() : null;
-
-    if (node) {
-      this.renameValue.set(node.label || '');
-      this.renameTitle.set(`Rename ${node.type || 'Item'}`);
-      this.renameTarget = { type: 'node', data: node };
-    } else {
-      this.renameValue.set(conn.name);
-      this.renameTitle.set('Rename Connection');
-      this.renameTarget = { type: 'connection', data: conn };
-    }
-
+    this.renameValue.set(conn.name);
+    this.renameTitle.set('Rename Connection');
+    this.renameTarget = conn;
     this.showRenameDialog.set(true);
     this.contextMenuVisible.set(false);
   }
@@ -128,15 +123,7 @@ export class SidebarComponent {
       return;
     }
 
-    if (this.renameTarget.type === 'connection') {
-      this.connectionService.updateConnection({ ...this.renameTarget.data, name: newName });
-    } else if (this.renameTarget.type === 'node') {
-      // Logic for renaming a node in the explorer (e.g., collection/table)
-      // Note: Backend support for this might be needed for persistent changes
-      this.renameTarget.data.label = newName;
-      // You might want to trigger a refresh or emit a rename event here
-    }
-
+    this.connectionService.updateConnection({ ...this.renameTarget, name: newName });
     this.showRenameDialog.set(false);
     this.renameTarget = null;
   }

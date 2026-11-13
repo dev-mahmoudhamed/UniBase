@@ -15,13 +15,35 @@ export interface DatabaseConnection {
     database?: string;
     user?: string;
     password?: string;
+    /** Shown as a tag; 'prod' adds a red stripe and asks before running write statements. */
+    environment?: Environment;
     isActive?: boolean;
 }
 
-export interface QueryResult {
+export type Environment = 'local' | 'dev' | 'staging' | 'prod';
+
+export const ENVIRONMENTS: { value: Environment; label: string }[] = [
+    { value: 'local', label: 'Local' },
+    { value: 'dev', label: 'Dev' },
+    { value: 'staging', label: 'Staging' },
+    { value: 'prod', label: 'Prod' },
+];
+
+export function envLabel(connection: { environment?: Environment } | null | undefined): string {
+    return ENVIRONMENTS.find(e => e.value === (connection?.environment ?? 'local'))!.label;
+}
+
+/** One table of results. Rows are positional, matching `columns` by index. */
+export interface ResultSet {
     columns: string[];
-    rows: any[];
+    rows: unknown[][];
     rowCount: number;
+    /** True when the server stopped reading at its row limit. */
+    truncated: boolean;
+}
+
+export interface QueryResult {
+    resultSets: ResultSet[];
     executionTime: number;
 }
 
@@ -86,4 +108,4 @@ export interface ApiResponse<T = any> {
     message?: string;
     data?: T;
     error?: string;
-}
+}

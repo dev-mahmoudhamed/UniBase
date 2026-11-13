@@ -1,77 +1,103 @@
 .document-card {
   background: var(--bg-card);
-  border: 1px solid var(--border-bright);
+  border: 1px solid var(--border-dim);
   border-radius: var(--radius-lg);
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   overflow: hidden;
-  transition: var(--transition);
-  box-shadow: var(--shadow-md);
   width: 100%;
 
-  &:hover {
-    border-color: var(--primary-border);
-    box-shadow: var(--shadow-lg), 0 0 0 1px var(--primary-soft);
-  }
+  &:hover { border-color: var(--border-bright); }
 
-  &.dirty {
-    border-color: var(--warning);
-    .card-header { background: rgba(245, 158, 11, 0.05); }
-  }
+  &.editing { border-color: var(--primary-border); }
 }
 
 .card-header {
-  padding: 10px 16px;
-  background-color: rgba(255, 255, 255, 0.01);
+  padding: 6px 8px 6px 14px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
   border-bottom: 1px solid var(--border-dim);
+
+  .spacer { flex: 1; }
 }
 
 .doc-id {
   font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--primary-hover);
-  background: var(--primary-soft);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--primary-border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+
+  i { font-size: 11px; }
 }
 
 .dirty-badge {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--warning);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: rgba(245, 158, 11, 0.1);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  font-family: var(--font-cond);
+  font-size: 12px;
+  color: var(--run);
 }
 
-.btn-more {
-  background: transparent;
-  color: var(--primary-hover);
-  border: none;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  margin-right: 12px;
-  transition: var(--transition);
+/* Read view: key, value, BSON type */
+.fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) minmax(0, 1fr) auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
 
-  &:hover {
-    background: var(--primary-soft);
+  dt,
+  dd {
+    margin: 0;
+    padding: 4px 14px;
+    border-top: 1px solid var(--border-dim);
+    min-width: 0;
   }
+
+  dt:first-of-type,
+  dt:first-of-type + dd,
+  dt:first-of-type + dd + dd { border-top: 0; }
+
+  dt { color: var(--text-muted); }
+
+  dd {
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  dd.type {
+    font-family: var(--font-cond);
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: right;
+  }
+}
+
+.show-all {
+  width: 100%;
+  padding: 6px;
+  border: 0;
+  border-top: 1px solid var(--border-dim);
+  background: none;
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover { background: var(--bg-hover); }
 }
 
 .editor-container {
   position: relative;
-  background: #0d0d0f;
-  
+  background: var(--bg-editor);
+
   ngx-monaco-editor {
     height: 100%;
     width: 100%;
@@ -79,62 +105,16 @@
   }
 }
 
-.card-actions {
-  padding: 10px 16px;
-  display: flex;
-  gap: 12px;
-  background-color: rgba(255, 255, 255, 0.01);
+.card-error {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--error);
   border-top: 1px solid var(--border-dim);
 }
 
-.btn-save {
-  background: var(--primary);
-  color: var(--text-inverse);
-  padding: 6px 16px;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-
-  &:hover:not(:disabled) { 
-    background: var(--primary-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-violet);
-  }
+.card-actions {
+  padding: 8px 14px;
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--border-dim);
 }
-
-.btn-toggle {
-  background: var(--bg-input);
-  color: var(--primary-hover);
-  border: 1px solid var(--primary-border);
-  margin-left: auto;
-  padding: 6px 12px;
-  font-size: 12px;
-  border-radius: var(--radius-md);
-
-  &:hover:not(:disabled) { 
-    background: var(--primary-soft);
-    border-color: var(--primary);
-  }
-}
-
-.spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid transparent;
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
-
-::ng-deep .document-card .monaco-editor .margin,
-::ng-deep .document-card .monaco-editor .monaco-editor-background {
-  background-color: #0d0d0f !important;
-}
-
-::ng-deep .document-card .monaco-editor .scroll-decoration {
-  display: none !important;
-}
-

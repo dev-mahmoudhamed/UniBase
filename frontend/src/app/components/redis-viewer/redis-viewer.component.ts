@@ -2,6 +2,7 @@ import { Component, inject, input, signal, computed, effect } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import { RedisService, RedisKeyValueResponse } from '../../services/redis.service';
 import { ConnectionService } from '../../services/connection.service';
+import { ExplorerService } from '../../services/explorer.service';
 
 @Component({
     selector: 'app-redis-viewer',
@@ -15,10 +16,12 @@ export class RedisViewerComponent {
 
     private redisService = inject(RedisService);
     private connectionService = inject(ConnectionService);
+    private explorerService = inject(ExplorerService);
 
     isLoading = signal(false);
     isSaving = signal(false);
     isDeleting = signal(false);
+    confirmDelete = signal(false);
     errorMessage = signal<string | null>(null);
     successMessage = signal<string | null>(null);
 
@@ -55,7 +58,7 @@ export class RedisViewerComponent {
 
         this.isLoading.set(true);
         this.errorMessage.set(null);
-        this.successMessage.set(null);
+        this.confirmDelete.set(false);
 
         this.redisService.getKeyValue(sessionId, database, key).subscribe({
             next: (data) => {
@@ -66,6 +69,7 @@ export class RedisViewerComponent {
                 this.isLoading.set(false);
             },
             error: (err) => {
+                this.keyData.set(null);
                 this.errorMessage.set(err?.error?.error || 'Failed to load key value');
                 this.isLoading.set(false);
             }
@@ -81,25 +85,21 @@ export class RedisViewerComponent {
         this.errorMessage.set(null);
         this.successMessage.set(null);
 
+        const newKey = this.editKey();
         this.redisService.updateKeyValue({
             sessionId,
             database: data.database,
             oldKey: data.key,
-            newKey: this.editKey(),
+            newKey,
             value: this.editValue(),
-            ttl: this.editTTL()
+            // Only send the TTL if it was edited; otherwise the server keeps the current expiry.
+            ttl: this.editTTL() !== data.ttl ? this.editTTL() : null
         }).subscribe({
             next: () => {
-                this.successMessage.set('Key updated successfully');
-                // Update the local data to reflect saved state
-                this.keyData.set({
-                    ...data,
-                    key: this.editKey(),
-                    value: this.editValue(),
-                    ttl: this.editTTL()
-                });
                 this.isSaving.set(false);
-                // Auto-clear success message
+                if (newKey !== data.key) this.explorerService.staleNode.set(`db:${data.database}`);
+                this.loadKeyValue(data.database, newKey);
+                this.successMessage.set('Key saved');
                 setTimeout(() => this.successMessage.set(null), 3000);
             },
             error: (err) => {
@@ -114,8 +114,12 @@ export class RedisViewerComponent {
         const data = this.keyData();
         if (!sessionId || !data) return;
 
-        if (!confirm(`Are you sure you want to delete key "${data.key}"?`)) return;
-
+        // First click asks, second click deletes.
+        if (!this.confirmDelete()) {
+            this.confirmDelete.set(true);
+            return;
+        }
+        this.confirmDelete.set(false);
         this.isDeleting.set(true);
         this.errorMessage.set(null);
 
@@ -123,7 +127,8 @@ export class RedisViewerComponent {
             next: () => {
                 this.keyData.set(null);
                 this.isDeleting.set(false);
-                this.successMessage.set('Key deleted successfully');
+                this.explorerService.staleNode.set(`db:${data.database}`);
+                this.successMessage.set(`Deleted ${data.key}`);
             },
             error: (err) => {
                 this.errorMessage.set(err?.error?.error || 'Failed to delete key');
@@ -140,11 +145,11 @@ export class RedisViewerComponent {
         this.editTTL.set(data.ttl);
         this.errorMessage.set(null);
         this.successMessage.set(null);
+        this.confirmDelete.set(false);
     }
 
     formatTTL(ttl: number): string {
-        if (ttl === -1) return 'No expiry';
-        if (ttl === -2) return 'Key does not exist';
+        if (ttl < 0) return 'No expiry';
         if (ttl < 60) return `${ttl}s`;
         if (ttl < 3600) return `${Math.floor(ttl / 60)}m ${ttl % 60}s`;
         const hours = Math.floor(ttl / 3600);
@@ -154,12 +159,12 @@ export class RedisViewerComponent {
 
     getTypeColor(type: string): string {
         switch (type) {
-            case 'string': return '#98c379';
-            case 'hash': return '#e5c07b';
-            case 'list': return '#61afef';
-            case 'set': return '#c678dd';
-            case 'zset': return '#56b6c2';
-            default: return '#abb2bf';
+            case 'string': return 'var(--success)';
+            case 'hash': return 'var(--warning)';
+            case 'list': return 'var(--info)';
+            case 'set': return 'var(--primary)';
+            case 'zset': return 'var(--eng-mysql)';
+            default: return 'var(--text-muted)';
         }
     }
 

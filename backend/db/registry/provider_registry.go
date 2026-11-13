@@ -20,6 +20,7 @@ var (
 
 type ProviderRegistry struct {
 	providers  map[string]models.ProviderMetadata
+	order      []string // ids in providers.json order, so the UI list is stable
 	version    string
 	configPath string
 }
@@ -78,9 +79,9 @@ func (r *ProviderRegistry) GetAllProviders() []models.ProviderMetadata {
 	registryLock.RLock()
 	defer registryLock.RUnlock()
 
-	providers := make([]models.ProviderMetadata, 0, len(r.providers))
-	for _, provider := range r.providers {
-		providers = append(providers, provider)
+	providers := make([]models.ProviderMetadata, 0, len(r.order))
+	for _, id := range r.order {
+		providers = append(providers, r.providers[id])
 	}
 
 	return providers
@@ -157,14 +158,16 @@ func (r *ProviderRegistry) filterProviders(providers []models.ProviderMetadata) 
 		"mssql",
 		"mysql",
 		"mongodb",
-		// "redis",
+		"redis",
 	}
 
 	filtered := make(map[string]models.ProviderMetadata)
+	r.order = r.order[:0]
 	for _, p := range providers {
 		for _, id := range allowedIDs {
 			if p.ID == id {
 				filtered[p.ID] = p
+				r.order = append(r.order, p.ID)
 				break
 			}
 		}

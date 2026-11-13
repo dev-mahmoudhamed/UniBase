@@ -7,7 +7,7 @@
 
 .editor-header {
   padding: 12px 20px;
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--text-primary) 1%, transparent);
   border-bottom: 1px solid var(--border-dim);
   display: flex;
   justify-content: space-between;
@@ -24,8 +24,9 @@
   background-color: var(--bg-input);
   border: 1px solid var(--border-bright);
   border-radius: var(--radius-full);
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-family: var(--font-cond);
+  font-size: 13px;
+  color: var(--text-primary);
   font-weight: 500;
   transition: var(--transition);
 
@@ -34,48 +35,40 @@
     background-color: var(--bg-card);
   }
 
-  .status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+  .pill-note {
+    color: var(--warning);
 
-    &.connected {
-      background-color: var(--success);
-      box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
-    }
-
-    &.connecting {
-      background-color: var(--warning);
-      animation: pulse 1.5s infinite;
-      box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
-    }
-
-    &.error {
-      background-color: var(--error);
-      box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
-    }
+    &.error { color: var(--error); }
   }
 }
 
-@keyframes pulse {
-  0% {
-    transform: scale(1);
-    opacity: 1;
+.editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border-dim);
+
+  span { flex: 1; }
+
+  &.prod {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--error) 10%, var(--bg-card));
+    border-bottom-color: var(--error);
+
+    strong { color: var(--error); }
   }
-  50% {
-    transform: scale(1.3);
-    opacity: 0.6;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+
+  .btn { padding: 4px 12px; }
 }
 
 .editor-container {
   flex: 1;
   position: relative;
-  background-color: #0d0d0f;
+  background-color: var(--bg-editor);
 
   ngx-monaco-editor {
     width: 100%;
@@ -86,10 +79,10 @@
 ::ng-deep {
   .monaco-editor {
     .margin {
-      background-color: #0d0d0f !important;
+      background-color: var(--bg-editor) !important;
     }
     .monaco-editor-background {
-      background-color: #0d0d0f !important;
+      background-color: var(--bg-editor) !important;
     }
 
     .line-numbers {
@@ -99,12 +92,12 @@
     }
 
     .current-line {
-      background: rgba(255, 255, 255, 0.03) !important;
+      background: color-mix(in srgb, var(--text-primary) 3%, transparent) !important;
       border: none !important;
     }
 
     .selectionHighlight {
-      background: #3e445166 !important;
+      background: var(--editor-selection) !important;
     }
 
     .scrollbar .slider {

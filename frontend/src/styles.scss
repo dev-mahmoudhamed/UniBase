@@ -1,39 +1,58 @@
 /* ============================================
-   UniBase - Modern SaaS Dark Theme (Linear/Vercel inspired)
+   UniBase - "Ink & Engine"
+   Ink-graphite surfaces, indigo brand (the logo), amber only for running
+   queries, and one identity hue per database engine. Dark by default;
+   [data-theme="light"] on <html> switches every token.
    ============================================ */
 
 :root {
-  /* Core Colors - Violet/Purple Foundation */
-  --primary: #8b5cf6;
-  --primary-hover: #a78bfa;
-  --primary-dark: #6d28d9;
-  --primary-soft: rgba(139, 92, 246, 0.12);
-  --primary-border: rgba(139, 92, 246, 0.25);
-  
-  /* Backgrounds */
-  --bg-app: #09090b;
-  --bg-card: #121217;
-  --bg-input: #18181b;
-  --bg-header: #0f172a; /* Slightly blue-dark for depth */
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  
-  /* Borders & Dividers */
-  --border-dim: #1e1e24;
-  --border-bright: #27272a;
+  /* Brand (logo indigo): selection, focus, primary buttons */
+  --primary: #7B7FF0;
+  --primary-hover: #979BF6;
+  --primary-dark: #5B5FD6;
+  --primary-soft: color-mix(in srgb, var(--primary) 14%, transparent);
+  --primary-border: color-mix(in srgb, var(--primary) 32%, transparent);
+
+  /* Run signal: only for executing queries */
+  --run: #F2A93B;
+  --run-hover: #F5BB5E;
+  --run-fg: #1A1206;
+
+  /* Surfaces */
+  --bg-app: #0E131A;
+  --bg-card: #141B24;
+  --bg-raised: #1B2430;
+  --bg-input: #18202B;
+  --bg-header: #141B24;
+  --bg-editor: #0E131A;
+  --bg-hover: color-mix(in srgb, var(--text-primary) 5%, transparent);
+
+  /* Borders */
+  --border-dim: #1F2935;
+  --border-bright: #2B3746;
   --border-focus: var(--primary);
-  
-  /* Text - High Contrast Focus */
-  --text-primary: #fafafa;
-  --text-secondary: #d1d5db;
-  --text-muted: #94a3b8;
-  --text-inverse: #ffffff;
-  --text-violet: #c4b5fd; /* Light violet for text accents */
-  
-  /* Status Colors */
-  --success: #10b981;
-  --error: #ef4444;
-  --warning: #f59e0b;
-  --info: #0ea5e9;
+
+  /* Text */
+  --text-primary: #E4E9EE;
+  --text-secondary: #C1CAD4;
+  --text-muted: #8E9BAA;
+  --text-inverse: #FFFFFF;
+  --text-violet: #B5B8FA;
+
+  /* Status */
+  --success: #5DBB8A;
+  --error: #F0525B;
+  --warning: #D9B23E;
+  --info: #6B9BF2;
+
+  /* Engine identity: stripes, markers and dots only */
+  --eng-postgresql: #6B9BF2;
+  --eng-mssql: #E0607E;
+  --eng-mysql: #2FB3C6;
+  --eng-mongodb: #5DBB6E;
+  --eng-redis: #E8644A;
+
+  --editor-selection: #34405266;
 
   /* Spacing Scale */
   --space-1: 0.25rem;
@@ -44,23 +63,88 @@
   --space-8: 2rem;
 
   /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
   --radius-full: 9999px;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
-  --shadow-violet: 0 0 15px rgba(139, 92, 246, 0.15);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 10px -2px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 28px -6px rgba(0, 0, 0, 0.35);
+  --shadow-violet: 0 0 0 3px var(--primary-soft);
 
-  /* Transitions */
   --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Font Families */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  /* Type: Plex for the UI, Plex Condensed for dense labels, JetBrains Mono for code and data */
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-cond: 'IBM Plex Sans Condensed', 'Arial Narrow', 'IBM Plex Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --primary: #5B5FD6;
+  --primary-hover: #4B4FC4;
+  --primary-dark: #4044B0;
+  --run: #B36600;
+  --run-hover: #9A5800;
+  --run-fg: #FFFFFF;
+  --bg-app: #F3F5F7;
+  --bg-card: #FFFFFF;
+  --bg-raised: #EAEEF2;
+  --bg-input: #FFFFFF;
+  --bg-header: #FFFFFF;
+  --bg-editor: #FFFFFF;
+  --border-dim: #E3E8ED;
+  --border-bright: #D0D8E1;
+  --text-primary: #17202B;
+  --text-secondary: #36424F;
+  --text-muted: #5B6879;
+  --text-violet: #4B4FC4;
+  --success: #227A50;
+  --error: #C41F2B;
+  --warning: #876C00;
+  --info: #2F64C8;
+  --eng-postgresql: #2F64C8;
+  --eng-mssql: #BF3459;
+  --eng-mysql: #0B8193;
+  --eng-mongodb: #2C8743;
+  --eng-redis: #C2401F;
+  --editor-selection: #C9D3F2;
+  --shadow-md: 0 4px 10px -2px rgba(23, 32, 43, 0.08);
+  --shadow-lg: 0 12px 28px -6px rgba(23, 32, 43, 0.16);
+  color-scheme: light;
+}
+
+/* Engine marker: a small dot or stripe in the engine's color.
+   Set --engine on any ancestor, e.g. style="--engine: var(--eng-mongodb)". */
+.engine-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--engine, var(--text-muted));
+  flex-shrink: 0;
+}
+
+/* Environment tag: Local / Dev / Staging / Prod */
+.env-tag {
+  font-family: var(--font-cond);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border-bright);
+  color: var(--text-muted);
+  white-space: nowrap;
+
+  &.prod {
+    color: var(--error);
+    border-color: var(--error);
+  }
 }
 
 /* ============================================
@@ -108,11 +192,6 @@ h1, h2, h3, h4 {
   letter-spacing: -0.01em;
 }
 
-.text-gradient {
-  background: linear-gradient(135deg, #fff 0%, var(--primary-hover) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
 
 /* ============================================
    Unified UI Components
@@ -155,6 +234,20 @@ h1, h2, h3, h4 {
   &:active { transform: translateY(0); }
 }
 
+/* Run: the one amber control. Only for executing against a database. */
+.btn-run {
+  background-color: var(--run);
+  color: var(--run-fg);
+  font-weight: 600;
+  &:hover { background-color: var(--run-hover); }
+}
+
+.btn-danger {
+  background-color: var(--error);
+  color: #FFFFFF;
+  &:hover { filter: brightness(1.08); }
+}
+
 .btn-secondary {
   background-color: var(--bg-card);
   border-color: var(--border-bright);
@@ -174,17 +267,6 @@ h1, h2, h3, h4 {
   }
 }
 
-.btn-violet-ghost {
-  background: var(--primary-soft);
-  color: var(--primary);
-  border: 1px solid var(--primary-border);
-  &:hover {
-    background: rgba(139, 92, 246, 0.2);
-    color: var(--primary-hover);
-    border-color: var(--primary);
-  }
-}
-
 /* Cards */
 .card {
   background-color: var(--bg-card);
@@ -199,12 +281,10 @@ h1, h2, h3, h4 {
   margin-bottom: var(--space-4);
   label {
     display: block;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
   }
 }
 
@@ -247,7 +327,7 @@ input, textarea, select {
   th {
     position: sticky;
     top: 0;
-    background-color: #1a1a21;
+    background-color: var(--bg-raised);
     padding: 12px 16px;
     text-align: left;
     font-size: 12px;
@@ -287,10 +367,10 @@ input, textarea, select {
   font-weight: 600;
   text-transform: uppercase;
   
-  &.success { background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); }
-  &.error { background: rgba(239, 68, 68, 0.1); color: var(--error); border: 1px solid rgba(239, 68, 68, 0.2); }
-  &.warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
-  &.info { background: rgba(14, 165, 233, 0.1); color: var(--info); border: 1px solid rgba(14, 165, 233, 0.2); }
+  &.success { background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 25%, transparent); }
+  &.error { background: color-mix(in srgb, var(--error) 10%, transparent); color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 25%, transparent); }
+  &.warning { background: color-mix(in srgb, var(--warning) 10%, transparent); color: var(--warning); border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent); }
+  &.info { background: color-mix(in srgb, var(--info) 10%, transparent); color: var(--info); border: 1px solid color-mix(in srgb, var(--info) 25%, transparent); }
   &.violet { background: var(--primary-soft); color: var(--primary-hover); border: 1px solid var(--primary-border); }
 }
 

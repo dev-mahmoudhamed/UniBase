@@ -1,7 +1,31 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { DatabaseConnection } from '../models/database.model';
 import { QueryService } from './query.service';
-import { firstValueFrom } from 'rxjs';
+import { catchError, firstValueFrom, from, switchMap, throwError } from 'rxjs';
+
+/**
+ * Sessions live in server memory, so a server restart forgets them (401).
+ * Reconnects the active connection and retries the request once. Queries are
+ * not re-run automatically, because that could repeat an UPDATE or DELETE.
+ */
+export const sessionRetryInterceptor: HttpInterceptorFn = (req, next) => {
+    const body = req.body as { sessionId?: string } | null;
+    if (!body?.sessionId) return next(req);
+    const connections = inject(ConnectionService);
+    return next(req).pipe(catchError(err => {
+        if (err?.status !== 401) return throwError(() => err);
+        return from(connections.reconnect()).pipe(switchMap(sessionId => {
+            if (!sessionId) return throwError(() => err);
+            if (req.url.includes('/query/')) {
+                return throwError(() => new HttpErrorResponse({
+                    status: 401, error: { error: 'Reconnected to the server. Run the query again.' }
+                }));
+            }
+            return next(req.clone({ body: { ...body, sessionId } }));
+        }));
+    }));
+};
 
 @Injectable({
     providedIn: 'root'
@@ -13,6 +37,8 @@ export class ConnectionService {
     private activeConnectionSignal = signal<DatabaseConnection | null>(null);
     private sessionIdSignal = signal<string | null>(sessionStorage.getItem('db_session_id'));
     private isLoadingMetadataSignal = signal<boolean>(false);
+    /** Why the last connect attempt failed, shown in the sidebar. */
+    readonly connectionError = signal<string | null>(null);
 
     connections = computed(() => this.connectionsSignal());
     activeConnection = computed(() => this.activeConnectionSignal());
@@ -62,6 +88,7 @@ export class ConnectionService {
     async setActiveConnection(connection: DatabaseConnection | null): Promise<void> {
         this.activeConnectionSignal.set(connection);
 
+        this.connectionError.set(null);
         if (connection) {
             this.isLoadingMetadataSignal.set(true);
             try {
@@ -73,7 +100,7 @@ export class ConnectionService {
                 }
 
             } catch (error) {
-                console.error('Failed to initialize connection session', error);
+                this.connectionError.set((error as any)?.error?.error || 'Could not connect to the server');
                 this.sessionIdSignal.set(null);
                 sessionStorage.removeItem('db_session_id');
             } finally {
@@ -83,6 +110,18 @@ export class ConnectionService {
             this.sessionIdSignal.set(null);
             sessionStorage.removeItem('db_session_id');
         }
+    }
+
+    private reconnecting: Promise<string | null> | null = null;
+
+    /** Opens a new server session for the active connection (e.g. after a server restart). */
+    reconnect(): Promise<string | null> {
+        const connection = this.activeConnectionSignal();
+        if (!connection) return Promise.resolve(null);
+        this.reconnecting ??= this.setActiveConnection(connection)
+            .then(() => this.sessionIdSignal())
+            .finally(() => this.reconnecting = null);
+        return this.reconnecting;
     }
 
     getConnection(id: string): DatabaseConnection | undefined {

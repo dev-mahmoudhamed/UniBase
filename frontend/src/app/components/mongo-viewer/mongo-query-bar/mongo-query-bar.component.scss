@@ -91,8 +91,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--primary);
-  color: var(--text-inverse);
+  background: var(--run);
+  color: var(--run-fg);
   border: none;
   border-radius: var(--radius-md);
   padding: 0 20px;
@@ -106,9 +106,7 @@
   i { font-size: 11px; }
 
   &:hover {
-    background: var(--primary-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-violet);
+    background: var(--run-hover);
   }
 
   &:active {
@@ -169,7 +167,7 @@
   border: 1px solid var(--primary-border);
 
   &:hover {
-    background: rgba(139, 92, 246, 0.2);
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
     border-color: var(--primary);
     transform: translateY(-1px);
   }

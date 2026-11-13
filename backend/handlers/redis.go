@@ -52,7 +52,7 @@ func GetRedisKeyValue(c *gin.Context) {
 
 	result, err := redisProvider.GetKeyValue(*config, req.Key)
 	if err != nil {
-		InternalError(c, err, "Failed to retrieve key value")
+		InternalError(c, err, "Failed to load key: "+sanitizeError(err))
 		return
 	}
 
@@ -99,7 +99,7 @@ func UpdateRedisKeyValue(c *gin.Context) {
 	}
 
 	if err := redisProvider.SetKeyValue(*config, req.OldKey, req.NewKey, req.Value, req.TTL); err != nil {
-		InternalError(c, err, "Failed to update key")
+		InternalError(c, err, "Failed to save key: "+sanitizeError(err))
 		return
 	}
 
@@ -146,7 +146,7 @@ func DeleteRedisKey(c *gin.Context) {
 	}
 
 	if err := redisProvider.DeleteKey(*config, req.Key); err != nil {
-		InternalError(c, err, "Failed to delete key")
+		InternalError(c, err, "Failed to delete key: "+sanitizeError(err))
 		return
 	}
 

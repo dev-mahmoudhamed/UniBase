@@ -1,6 +1,6 @@
-<div class="app-container">
+<div class="app-container" [class.prod]="isProd()" [style.--engine]="engineColor()">
   <as-split direction="horizontal" [gutterSize]="4" unit="pixel">
-    <as-split-area [size]="sidebarCollapsed() ? 44 : 260" [minSize]="sidebarCollapsed() ? 44 : 150"
+    <as-split-area [size]="sidebarCollapsed() ? 44 : 280" [minSize]="sidebarCollapsed() ? 44 : 150"
       [maxSize]="sidebarCollapsed() ? 44 : 600">
 
       <app-sidebar [isCollapsed]="sidebarCollapsed()" (toggleSidebar)="toggleSidebar()"
@@ -26,7 +26,8 @@
         <as-split direction="vertical" [gutterSize]="4">
           <as-split-area [size]="60" [minSize]="20">
             <app-query-editor [queryText]="currentQueryText()" (queryTextChange)="currentQueryText.set($event)"
-              [language]="currentLanguage()" (executeQuery)="executeQuery($event)">
+              [language]="currentLanguage()" [running]="isLoadingQuery()"
+              (executeQuery)="executeQuery($event)" (cancelQuery)="cancelQuery()">
             </app-query-editor>
           </as-split-area>
           <as-split-area [size]="40" [minSize]="20">
@@ -39,6 +40,21 @@
       </div>
     </as-split-area>
   </as-split>
+
+  <footer class="status-bar">
+    @if (activeConnection(); as conn) {
+    <span class="engine"><span class="engine-dot"></span>{{ engineName() }}</span>
+    <span>{{ conn.host }}:{{ conn.port }}</span>
+    @if (conn.database) {
+    <span>{{ conn.database }}</span>
+    }
+    <span class="env-tag" [class.prod]="isProd()">{{ envLabel(conn) }}</span>
+    } @else {
+    <span>No connection</span>
+    }
+    <span class="spacer"></span>
+    <span>{{ runStatus() }}</span>
+  </footer>
 </div>
 
 @if (showConnectionDialog()) {

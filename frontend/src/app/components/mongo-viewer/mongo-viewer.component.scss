@@ -126,15 +126,15 @@
   animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
   &.alert-error {
-    background: rgba(239, 68, 68, 0.08);
+    background: color-mix(in srgb, var(--error) 8%, transparent);
     color: var(--error);
-    border-bottom: 1px solid rgba(239, 68, 68, 0.1);
+    border-bottom: 1px solid color-mix(in srgb, var(--error) 10%, transparent);
   }
 
   &.alert-success {
-    background: rgba(16, 185, 129, 0.08);
+    background: color-mix(in srgb, var(--success) 8%, transparent);
     color: var(--success);
-    border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+    border-bottom: 1px solid color-mix(in srgb, var(--success) 10%, transparent);
   }
 }
 
@@ -247,3 +247,7 @@
   }
 }
 
+
+.viewer-empty.pick {
+  flex: 1;
+}
