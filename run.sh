@@ -12,7 +12,7 @@ echo "--- Starting Go Backend ---"
 echo "--- Opening Browser at http://localhost:5000 in 3 seconds... ---"
 
 # Open browser in a background process
-(sleep 2 && explorer "http://localhost:5000") &
+(sleep 2 && { open "http://localhost:5000" 2>/dev/null || xdg-open "http://localhost:5000" 2>/dev/null || explorer.exe "http://localhost:5000"; }) &
 
 cd ../backend
 go run main.go

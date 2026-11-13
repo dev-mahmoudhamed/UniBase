@@ -2,10 +2,23 @@
     <div class="results-header">
         <div class="flex items-center gap-2">
             <h3 class="section-title">Results</h3>
-            @if (isQueryResult(result())) {
+            @if (queryResult(); as r) {
+            @if (r.resultSets.length > 1) {
+            @for (set of r.resultSets; track $index) {
+            <button class="set-tab" [class.active]="$index === activeSet()" (click)="activeSet.set($index)">
+                Result {{ $index + 1 }}
+            </button>
+            }
+            }
             <div class="results-meta">
-                {{ $any(result()).rowCount }} rows &bull; {{ $any(result()).executionTime }}ms
+                @if (currentSet(); as set) {
+                {{ set.rowCount }} rows &bull;
+                }
+                {{ r.executionTime }}ms
             </div>
+            @if (currentSet()?.truncated) {
+            <span class="truncated-note">Showing the first {{ currentSet()!.rowCount }} rows</span>
+            }
             }
         </div>
         <div class="flex items-center gap-2">
@@ -17,15 +30,13 @@
     </div>
 
     <div class="results-content">
-        <div *ngIf="isLoading()" class="loading-state h-full">
+        @if (isLoading()) {
+        <div class="loading-state h-full">
             <div class="table-container w-full h-full">
                 <div class="table-header">
-                    <div class="header-cell skeleton" style="border: none; margin: 8px; width: 100px; height: 16px;">
-                    </div>
-                    <div class="header-cell skeleton" style="border: none; margin: 8px; width: 100px; height: 16px;">
-                    </div>
-                    <div class="header-cell skeleton" style="border: none; margin: 8px; width: 100px; height: 16px;">
-                    </div>
+                    <div class="header-cell skeleton" style="border: none; margin: 8px; width: 100px; height: 16px;"></div>
+                    <div class="header-cell skeleton" style="border: none; margin: 8px; width: 100px; height: 16px;"></div>
+                    <div class="header-cell skeleton" style="border: none; margin: 8px; width: 100px; height: 16px;"></div>
                 </div>
                 <div class="p-3 flex flex-col gap-2">
                     <div class="skeleton" style="height: 32px; width: 100%;"></div>
@@ -34,39 +45,57 @@
                 </div>
             </div>
         </div>
-
-        <div *ngIf="!isLoading() && !result()" class="empty-state">
-            <p>No query executed</p>
-            <p class="metadata">Results will appear here after execution</p>
+        } @else if (errorMessage() === 'Query cancelled') {
+        <div class="empty-state">
+            <p>Query cancelled</p>
+            <p class="metadata">The database stopped the query. Nothing was returned.</p>
         </div>
-
-        <div *ngIf="!isLoading() && isQueryError(result())" class="error-state">
+        } @else if (errorMessage(); as message) {
+        <div class="error-state">
             <i class="fa-solid fa-triangle-exclamation" style="font-size: 32px; margin-bottom: 16px;"></i>
-            <p class="font-semibold">Query Execution Failed</p>
-            <div class="error-message">{{ $any(result()).message }}</div>
+            <p class="font-semibold">Query failed</p>
+            <div class="error-message">{{ message }}</div>
         </div>
-
-        <div *ngIf="!isLoading() && isQueryResult(result())" class="table-container" [class.compact]="isCompact()">
-            <div class="table-header">
-                @for (column of $any(result()).columns; track column) {
-                <div class="header-cell" [class.compact]="isCompact()">{{ column }}</div>
+        } @else if (currentSet(); as set) {
+        <div class="table-container" [class.compact]="isCompact()">
+            <div class="table-header" #header>
+                <div class="header-cell rn" [class.compact]="isCompact()">#</div>
+                @for (column of set.columns; track $index) {
+                <div class="header-cell" [class.compact]="isCompact()" [style.width.px]="widths()[$index]"
+                    [title]="column">{{ column }}</div>
                 }
             </div>
 
-            <cdk-virtual-scroll-viewport [itemSize]="isCompact() ? 28 : 35" class="table-viewport">
-                <div *cdkVirtualFor="let row of $any(result()).rows; let even = even; trackBy: rowTrackBy"
-                    class="table-row" [class.even]="even" [class.compact]="isCompact()">
-                    @for (column of $any(result()).columns; track column) {
-                    <div class="table-cell" [class.compact]="isCompact()" [title]="formatValue(row[column])">
-                        {{ formatValue(row[column]) }}
+            <cdk-virtual-scroll-viewport [itemSize]="isCompact() ? 28 : 35" class="table-viewport"
+                (scroll)="header.scrollLeft = $any($event.target).scrollLeft">
+                <div *cdkVirtualFor="let row of set.rows; let i = index; let even = even" class="table-row"
+                    [class.even]="even" [class.compact]="isCompact()">
+                    <div class="table-cell rn" [class.compact]="isCompact()">{{ i + 1 }}</div>
+                    @for (column of set.columns; track $index) {
+                    <div class="table-cell" [class.compact]="isCompact()" [class.null]="row[$index] === null"
+                        [style.width.px]="widths()[$index]" [title]="formatValue(row[$index])">
+                        {{ formatValue(row[$index]) }}
                     </div>
                     }
                 </div>
             </cdk-virtual-scroll-viewport>
 
-            <div *ngIf="$any(result()).rows.length === 0" class="empty-state">
-                <p>Success, but no data returned</p>
+            @if (set.rows.length === 0) {
+            <div class="empty-state">
+                <p>No rows returned</p>
             </div>
+            }
         </div>
+        } @else if (queryResult()) {
+        <div class="empty-state">
+            <p>Statement executed</p>
+            <p class="metadata">It returned no result set</p>
+        </div>
+        } @else {
+        <div class="empty-state">
+            <p>No query executed</p>
+            <p class="metadata">Results will appear here after execution</p>
+        </div>
+        }
     </div>
 </div>

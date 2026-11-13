@@ -1,9 +1,8 @@
-import { Component, effect, inject, input, model, output } from '@angular/core';
-import { hashQueryId } from '../../utils/hash.utils';
-
+import { Component, effect, inject, input, model, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorModule } from 'ngx-monaco-editor-v2';
 import { ConnectionService } from '../../services/connection.service';
+import { ThemeService } from '../../services/theme.service';
 
 @Component({
     selector: 'app-query-editor',
@@ -14,11 +13,14 @@ import { ConnectionService } from '../../services/connection.service';
 })
 export class QueryEditorComponent {
     private connectionService = inject(ConnectionService);
+    private themeService = inject(ThemeService);
     language = input<string>('sql');
     executeQuery = output<{ query: string; queryId: string; sessionId: string }>();
+    cancelQuery = output<void>();
+    running = input(false);
 
     editorOptions = {
-        theme: 'unibase-dark',
+        theme: this.themeService.monacoTheme(),
         language: this.language(),
         minimap: { enabled: false, scale: 1, side: 'right' },
         fontSize: 13,
@@ -68,37 +70,8 @@ export class QueryEditorComponent {
     onEditorInit(editor: any): void {
         const monaco = (window as any).monaco;
         if (monaco) {
-            monaco.editor.defineTheme('unibase-dark', {
-                base: 'vs-dark',
-                inherit: true,
-                rules: [
-                    { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
-                    { token: 'keyword', foreground: 'c678dd', fontStyle: 'bold' },
-                    { token: 'string', foreground: '98c379' },
-                    { token: 'number', foreground: 'd19a66' },
-                    { token: 'operator', foreground: '56b6c2' },
-                    { token: 'identifier', foreground: '61afef' },
-                    { token: 'type', foreground: 'e5c07b' },
-                    { token: 'function', foreground: '61afef', fontStyle: 'bold' },
-                    { token: 'variable', foreground: 'e06c75' },
-                    { token: 'constant', foreground: 'd19a66' },
-                    { token: 'string.escape', foreground: '56b6c2' },
-                ],
-                colors: {
-                    'editor.background': '#0d0d0f',           // Near-black background
-                    'editor.foreground': '#abb2bf',           // One Dark text
-                    'editorLineNumber.foreground': '#4b4b4f', // Muted line numbers
-                    'editorLineNumber.activeForeground': '#abb2bf',
-                    'editor.selectionBackground': '#3e445166', // Subtle selection
-                    'editor.lineHighlightBackground': '#161618', // Very subtle line highlight
-                    'editorCursor.foreground': '#a78bfa',     // Violet cursor
-                    'editor.findMatchBackground': '#42557b',
-                    'editorBracketMatch.background': '#515a6b',
-                    'editorBracketMatch.border': '#888888',
-                    'editorGutter.background': '#0d0d0f',
-                }
-            });
-            monaco.editor.setTheme('unibase-dark');
+            this.editor = editor;
+            this.themeService.applyMonacoTheme();
 
             // Utilizing the 'editor' parameter to add a keybinding
             editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
@@ -107,26 +80,52 @@ export class QueryEditorComponent {
         }
     }
 
-    onExecute(): void {
+    /** Inline message instead of a browser alert. */
+    notice = signal<string | null>(null);
+    /** Set when a Prod run is waiting for the user to confirm. */
+    confirmProd = signal(false);
+    private editor: any;
+
+    onExecute(confirmed = false): void {
+        if (this.running()) return;
         const connection = this.activeConnection();
-        const currentQuery = this.queryText();
         const sessionId = this.connectionService.sessionId();
+        this.notice.set(null);
+        this.confirmProd.set(false);
 
-        if (!connection) {
-            alert('Please select a database connection first');
+        if (!connection || !sessionId) {
+            this.notice.set('Open a connection in the sidebar first.');
             return;
         }
 
-        if (!sessionId) {
-            alert('Connection session not initialized. Please reconnect.');
+        // Run the selection if there is one, otherwise the whole editor.
+        const model = this.editor?.getModel();
+        const selected = model && this.editor.getSelection() ? model.getValueInRange(this.editor.getSelection()) : '';
+        const query = selected.trim() ? selected : this.queryText();
+        if (!query.trim()) {
+            this.notice.set('Write a query to run.');
             return;
         }
 
-        if (!currentQuery.trim()) {
-            alert('Please enter a query');
+        if (connection.environment === 'prod' && !confirmed && changesData(query)) {
+            this.confirmProd.set(true);
             return;
         }
-        const queryId = hashQueryId(currentQuery);
-        this.executeQuery.emit({ query: currentQuery, queryId, sessionId });
+
+        // A fresh ID per run: the server only reuses it while this run is being polled.
+        this.executeQuery.emit({ query, queryId: newRunId(), sessionId });
     }
+}
+
+/** True if the script contains a statement that changes data or schema (comments ignored). */
+function changesData(query: string): boolean {
+    const code = query.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    return /\b(insert|update|delete|merge|drop|truncate|alter|create|grant|revoke|exec|execute)\b/i.test(code);
+}
+
+function newRunId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }

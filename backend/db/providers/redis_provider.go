@@ -6,7 +6,8 @@ import (
 	"db-server/models"
 	"encoding/json"
 	"fmt"
-	"os"
+	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,149 +15,73 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// redisKeyLimit caps how many keys one database node lists in the explorer.
+const redisKeyLimit = 1000
+
 type RedisProvider struct {
 	BaseProvider
 }
 
-// buildClient creates a Redis client based on config
-func (r *RedisProvider) buildClient(config models.ConnectionConfig) *redis.Client {
-	dbIdx := 0
-	if config.Database != "" {
-		if idx, err := strconv.Atoi(config.Database); err == nil {
-			dbIdx = idx
-		}
-	}
-
-	return redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
+// client returns the pooled client for the connection's database index ("3" or "db3").
+func (r *RedisProvider) client(config models.ConnectionConfig) *redis.Client {
+	db, _ := strconv.Atoi(strings.TrimPrefix(config.Database, "db"))
+	return redisClient(&redis.Options{
+		Addr:     net.JoinHostPort(config.Host, strconv.Itoa(config.Port)),
 		Username: config.User,
 		Password: config.Password,
-		DB:       dbIdx,
+		DB:       db,
 	})
 }
 
 func (r *RedisProvider) TestConnection(config models.ConnectionConfig) error {
-	client := r.buildClient(config)
-	defer client.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), connectTimeout)
 	defer cancel()
-
-	if err := client.Ping(ctx).Err(); err != nil {
+	if err := r.client(config).Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("ping failed: %w", err)
 	}
 	return nil
 }
 
 func (r *RedisProvider) InitializeConnection(config models.ConnectionConfig) (string, interface{}, error) {
-	client := r.buildClient(config)
-	defer client.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Optionally execute lua script if requested, though redis logic doesn't strictly need one
-	// Here we try read the script to mimic others
-	scriptContent, err := os.ReadFile("./scripts/redis/metadata.lua")
-	var metadata map[string]interface{}
-
-	if err == nil && len(scriptContent) > 0 {
-		// Run lua script if present
-		res, err := client.Eval(ctx, string(scriptContent), []string{}).Result()
-		if err == nil {
-			if strRes, ok := res.(string); ok {
-				var parsed interface{}
-				json.Unmarshal([]byte(strRes), &parsed)
-				metadata = map[string]interface{}{"databases": parsed}
-			}
-		}
+	if err := r.TestConnection(config); err != nil {
+		return "", nil, err
 	}
-
-	if metadata == nil {
-		// Fallback to fetch info
-		infoStr := client.Info(ctx, "keyspace").Val()
-		databases := []map[string]interface{}{}
-		lines := strings.Split(infoStr, "\n")
-		for _, line := range lines {
-			if strings.HasPrefix(line, "db") {
-				parts := strings.Split(line, ":")
-				if len(parts) == 2 {
-					dbName := parts[0]
-					databases = append(databases, map[string]interface{}{
-						"name": dbName,
-						"type": "database",
-					})
-				}
-			}
-		}
-		metadata = map[string]interface{}{
-			"databases": databases,
-		}
-	}
-
 	sessionID, err := utils.StoreSession(config)
-	if err != nil {
-		return "", nil, err
-	}
-
-	rawJson, err := json.Marshal(metadata)
-	if err != nil {
-		return "", nil, err
-	}
-
-	return sessionID, json.RawMessage(rawJson), nil
+	return sessionID, nil, err
 }
 
-func (r *RedisProvider) ExecuteQuery(config models.ConnectionConfig, query string) (models.QueryResult, error) {
-	client := r.buildClient(config)
-	defer client.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
+func (r *RedisProvider) ExecuteQuery(ctx context.Context, config models.ConnectionConfig, query string) (models.QueryResult, error) {
 	startTime := time.Now()
 
-	// Try splitting the query by spaces for redis command executing
 	parts := strings.Fields(query)
 	if len(parts) == 0 {
 		return models.QueryResult{}, fmt.Errorf("empty query")
 	}
-
-	var args []interface{}
-	for _, p := range parts {
-		args = append(args, p)
+	args := make([]interface{}, len(parts))
+	for i, p := range parts {
+		args[i] = p
 	}
 
-	res, err := client.Do(ctx, args...).Result()
+	res, err := r.client(config).Do(ctx, args...).Result()
 	if err != nil {
 		return models.QueryResult{}, err
 	}
 
-	executionTime := time.Since(startTime).Milliseconds()
-
-	rows := []map[string]interface{}{
-		{"result": fmt.Sprintf("%v", res)},
-	}
-
 	return models.QueryResult{
-		Columns:       []string{"result"},
-		Rows:          rows,
-		RowCount:      1,
-		ExecutionTime: executionTime,
+		ResultSets: []models.ResultSet{{
+			Columns:  []string{"result"},
+			Rows:     [][]interface{}{{fmt.Sprintf("%v", res)}},
+			RowCount: 1,
+		}},
+		ExecutionTime: time.Since(startTime).Milliseconds(),
 	}, nil
 }
 
 func (r *RedisProvider) GetExplorerChildren(config models.ConnectionConfig, nodeType string, ctx map[string]string) ([]models.ExplorerNode, error) {
-	if dbName, ok := ctx["database"]; ok && dbName != "" {
-		if strings.HasPrefix(dbName, "db") {
-			config.Database = strings.TrimPrefix(dbName, "db")
-		} else {
-			config.Database = dbName
-		}
+	if dbName := ctx["database"]; dbName != "" {
+		config.Database = strings.TrimPrefix(dbName, "db")
 	}
-
-	client := r.buildClient(config)
-	defer client.Close()
+	c := r.client(config)
 
 	mctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -167,212 +92,251 @@ func (r *RedisProvider) GetExplorerChildren(config models.ConnectionConfig, node
 			{Key: "databases", Label: "Databases", Type: "databases", Icon: "pi pi-database", Leaf: false},
 		}, nil
 	case "databases":
-		infoStr, err := client.Info(mctx, "keyspace").Result()
-		if err != nil {
-			return nil, err
-		}
-		var nodes []models.ExplorerNode
-		lines := strings.Split(infoStr, "\n")
-		for _, line := range lines {
-			if strings.HasPrefix(line, "db") {
-				parts := strings.Split(line, ":")
-				if len(parts) == 2 {
-					dbName := parts[0]
-					dbIdx := strings.TrimPrefix(dbName, "db")
-					// Parse key count
-					var keyCount string
-					props := strings.Split(strings.TrimSpace(parts[1]), ",")
-					for _, prop := range props {
-						if strings.HasPrefix(prop, "keys=") {
-							keyCount = strings.TrimPrefix(prop, "keys=")
-						}
-					}
-
-					label := dbName
-					if keyCount != "" && keyCount != "0" {
-						label += fmt.Sprintf(" (%s keys)", keyCount)
-					}
-
-					nodes = append(nodes, models.ExplorerNode{
-						Key:   "db:" + dbIdx,
-						Label: label,
-						Type:  "database",
-						Icon:  "pi pi-server",
-						Leaf:  false,
-						Data:  map[string]interface{}{"database": dbIdx},
-					})
-				}
-			}
-		}
-		return nodes, nil
+		return r.databaseNodes(mctx, c)
 	case "database":
-		var cursor uint64
-		var keys []string
-		var err error
-		var nodes []models.ExplorerNode
-		// Limit to 1000 keys for exploration to prevent overload
-		keys, _, err = client.Scan(mctx, cursor, "*", 1000).Result()
-		if err != nil {
-			return nil, err
-		}
-
-		for _, k := range keys {
-			// type of key
-			kType := client.Type(mctx, k).Val()
-			icon := "pi pi-key"
-			switch kType {
-			case "hash":
-				icon = "pi pi-list"
-			case "list":
-				icon = "pi pi-bars"
-			case "set":
-				icon = "pi pi-chart-pie"
-			case "zset":
-				icon = "pi pi-chart-bar"
-			}
-
-			nodes = append(nodes, models.ExplorerNode{
-				Key:   fmt.Sprintf("key:%s:%s", config.Database, k),
-				Label: fmt.Sprintf("%s (%s)", k, kType),
-				Type:  "key",
-				Icon:  icon,
-				Leaf:  true,
-				Data:  map[string]interface{}{"database": config.Database, "key": k},
-			})
-		}
-		return nodes, nil
+		return r.keyNodes(mctx, c, config.Database)
 	default:
 		return []models.ExplorerNode{}, nil
 	}
 }
 
-// GetKeyValue retrieves the value of a Redis key depending on its type
-func (r *RedisProvider) GetKeyValue(config models.ConnectionConfig, key string) (*models.RedisKeyValueResponse, error) {
-	client := r.buildClient(config)
-	defer client.Close()
+// databaseNodes lists the databases that hold keys, from INFO keyspace ("db0:keys=12,expires=0,...").
+func (r *RedisProvider) databaseNodes(ctx context.Context, c *redis.Client) ([]models.ExplorerNode, error) {
+	info, err := c.Info(ctx, "keyspace").Result()
+	if err != nil {
+		return nil, err
+	}
+	nodes := []models.ExplorerNode{}
+	for _, line := range strings.Split(info, "\n") {
+		name, stats, ok := strings.Cut(strings.TrimSpace(line), ":")
+		if !ok || !strings.HasPrefix(name, "db") {
+			continue
+		}
+		idx := strings.TrimPrefix(name, "db")
+		label := name
+		for _, prop := range strings.Split(stats, ",") {
+			if n, ok := strings.CutPrefix(prop, "keys="); ok {
+				label = fmt.Sprintf("%s (%s keys)", name, n)
+			}
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key: "db:" + idx, Label: label, Type: "database", Icon: "pi pi-server",
+			Data: map[string]interface{}{"database": idx},
+		})
+	}
+	return nodes, nil
+}
 
+// keyNodes lists up to redisKeyLimit keys, sorted, with their types fetched in one round trip.
+func (r *RedisProvider) keyNodes(ctx context.Context, c *redis.Client, db string) ([]models.ExplorerNode, error) {
+	var keys []string
+	var cursor uint64
+	for {
+		batch, next, err := c.Scan(ctx, cursor, "*", 500).Result()
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, batch...)
+		cursor = next
+		if cursor == 0 || len(keys) >= redisKeyLimit {
+			break
+		}
+	}
+	truncated := cursor != 0 || len(keys) > redisKeyLimit
+	if len(keys) > redisKeyLimit {
+		keys = keys[:redisKeyLimit]
+	}
+	sort.Strings(keys)
+
+	types := make([]*redis.StatusCmd, len(keys))
+	pipe := c.Pipeline()
+	for i, k := range keys {
+		types[i] = pipe.Type(ctx, k)
+	}
+	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
+		return nil, err
+	}
+
+	icons := map[string]string{"hash": "pi pi-list", "list": "pi pi-bars", "set": "pi pi-chart-pie", "zset": "pi pi-chart-bar"}
+	nodes := make([]models.ExplorerNode, 0, len(keys)+1)
+	for i, k := range keys {
+		kType := types[i].Val()
+		icon := icons[kType]
+		if icon == "" {
+			icon = "pi pi-key"
+		}
+		nodes = append(nodes, models.ExplorerNode{
+			Key: fmt.Sprintf("key:%s:%s", db, k), Label: fmt.Sprintf("%s (%s)", k, kType), Type: "key", Icon: icon, Leaf: true,
+			Data: map[string]interface{}{"database": db, "key": k},
+		})
+	}
+	if truncated {
+		nodes = append(nodes, models.ExplorerNode{
+			Key: "more:" + db, Label: fmt.Sprintf("Showing the first %d keys", redisKeyLimit), Type: "info", Icon: "pi pi-info-circle", Leaf: true,
+		})
+	}
+	return nodes, nil
+}
+
+// GetKeyValue returns a key's value as text: strings as-is, other types as JSON.
+func (r *RedisProvider) GetKeyValue(config models.ConnectionConfig, key string) (*models.RedisKeyValueResponse, error) {
+	c := r.client(config)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Check key type
-	kType, err := client.Type(ctx, key).Result()
+	kType, err := c.Type(ctx, key).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get key type: %w", err)
 	}
+	if kType == "none" {
+		return nil, fmt.Errorf("key %q does not exist (it may have expired or been deleted)", key)
+	}
 
-	// Get TTL
-	ttl, err := client.TTL(ctx, key).Result()
+	ttl, err := c.TTL(ctx, key).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get TTL: %w", err)
 	}
 	ttlSeconds := int64(ttl.Seconds())
-	switch ttl {
-	case -1: // No expiry
+	if ttl < 0 {
 		ttlSeconds = -1
-	case -2: // Key does not exist
-		ttlSeconds = -2
 	}
 
-	var value string
+	var value interface{}
 	switch kType {
 	case "string":
-		value, err = client.Get(ctx, key).Result()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get string value: %w", err)
-		}
+		value, err = c.Get(ctx, key).Result()
 	case "list":
-		items, err := client.LRange(ctx, key, 0, -1).Result()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get list value: %w", err)
-		}
-		jsonBytes, _ := json.Marshal(items)
-		value = string(jsonBytes)
+		value, err = c.LRange(ctx, key, 0, -1).Result()
 	case "set":
-		items, err := client.SMembers(ctx, key).Result()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get set value: %w", err)
-		}
-		jsonBytes, _ := json.Marshal(items)
-		value = string(jsonBytes)
+		var members []string
+		members, err = c.SMembers(ctx, key).Result()
+		sort.Strings(members)
+		value = members
 	case "zset":
-		items, err := client.ZRangeWithScores(ctx, key, 0, -1).Result()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get zset value: %w", err)
+		var items []redis.Z
+		items, err = c.ZRangeWithScores(ctx, key, 0, -1).Result()
+		entries := make([]zsetEntry, len(items))
+		for i, z := range items {
+			entries[i] = zsetEntry{Member: fmt.Sprint(z.Member), Score: z.Score}
 		}
-		type zsetEntry struct {
-			Member string  `json:"member"`
-			Score  float64 `json:"score"`
-		}
-		var entries []zsetEntry
-		for _, item := range items {
-			entries = append(entries, zsetEntry{
-				Member: fmt.Sprintf("%v", item.Member),
-				Score:  item.Score,
-			})
-		}
-		jsonBytes, _ := json.Marshal(entries)
-		value = string(jsonBytes)
+		value = entries
 	case "hash":
-		items, err := client.HGetAll(ctx, key).Result()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get hash value: %w", err)
-		}
-		jsonBytes, _ := json.Marshal(items)
-		value = string(jsonBytes)
+		value, err = c.HGetAll(ctx, key).Result()
 	default:
-		value = fmt.Sprintf("(unsupported type: %s)", kType)
+		value = fmt.Sprintf("(viewing %s keys is not supported)", kType)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s value: %w", kType, err)
 	}
 
-	return &models.RedisKeyValueResponse{
-		Key:      key,
-		Value:    value,
-		Type:     kType,
-		TTL:      ttlSeconds,
-		Database: config.Database,
-	}, nil
+	text, ok := value.(string)
+	if !ok {
+		b, _ := json.Marshal(value)
+		text = string(b)
+	}
+	return &models.RedisKeyValueResponse{Key: key, Value: text, Type: kType, TTL: ttlSeconds, Database: config.Database}, nil
 }
 
-// SetKeyValue updates a Redis key's value (string type) and optionally renames it
-func (r *RedisProvider) SetKeyValue(config models.ConnectionConfig, oldKey, newKey, value string, ttl int64) error {
-	client := r.buildClient(config)
-	defer client.Close()
+type zsetEntry struct {
+	Member string  `json:"member"`
+	Score  float64 `json:"score"`
+}
 
+// SetKeyValue saves a key in its own type in one transaction, optionally renaming it.
+// ttl: nil keeps the current expiry, -1 removes it, >0 sets it in seconds.
+func (r *RedisProvider) SetKeyValue(config models.ConnectionConfig, oldKey, newKey, value string, ttl *int64) error {
+	c := r.client(config)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Set the new value on the old key first
-	if err := client.Set(ctx, oldKey, value, 0).Err(); err != nil {
-		return fmt.Errorf("failed to set value: %w", err)
+	kType, err := c.Type(ctx, oldKey).Result()
+	if err != nil {
+		return err
 	}
-
-	// Rename key if needed
-	if oldKey != newKey && newKey != "" {
-		if err := client.Rename(ctx, oldKey, newKey).Err(); err != nil {
-			return fmt.Errorf("failed to rename key: %w", err)
+	if kType == "none" {
+		return fmt.Errorf("key %q does not exist (it may have expired or been deleted)", oldKey)
+	}
+	rename := newKey != "" && newKey != oldKey
+	if rename {
+		if n, _ := c.Exists(ctx, newKey).Result(); n > 0 {
+			return fmt.Errorf("a key named %q already exists", newKey)
 		}
 	}
+	keepMs, _ := c.PTTL(ctx, oldKey).Result()
 
-	// Set TTL
-	finalKey := newKey
-	if finalKey == "" {
-		finalKey = oldKey
-	}
-	if ttl > 0 {
-		client.Expire(ctx, finalKey, time.Duration(ttl)*time.Second)
-	} else if ttl == -1 {
-		client.Persist(ctx, finalKey)
-	}
+	_, err = c.TxPipelined(ctx, func(p redis.Pipeliner) error {
+		if err := writeValue(ctx, p, kType, oldKey, value); err != nil {
+			return err
+		}
+		switch {
+		case ttl == nil && keepMs > 0 && kType != "string": // DEL + rewrite dropped the expiry
+			p.PExpire(ctx, oldKey, keepMs)
+		case ttl != nil && *ttl > 0:
+			p.Expire(ctx, oldKey, time.Duration(*ttl)*time.Second)
+		case ttl != nil && *ttl == -1:
+			p.Persist(ctx, oldKey)
+		}
+		if rename {
+			p.Rename(ctx, oldKey, newKey)
+		}
+		return nil
+	})
+	return err
+}
 
+// writeValue queues the commands that store value (as returned by GetKeyValue) in the key's type.
+// Parsing happens before anything is queued, so invalid input changes nothing.
+func writeValue(ctx context.Context, p redis.Pipeliner, kType, key, value string) error {
+	bad := func(want string) error { return fmt.Errorf("a %s value must be %s", kType, want) }
+	switch kType {
+	case "string":
+		p.Set(ctx, key, value, redis.KeepTTL)
+	case "hash":
+		var m map[string]string
+		if json.Unmarshal([]byte(value), &m) != nil {
+			return bad(`a JSON object of strings, e.g. {"field": "value"}`)
+		}
+		p.Del(ctx, key)
+		if len(m) > 0 {
+			p.HSet(ctx, key, m)
+		}
+	case "list", "set":
+		var items []string
+		if json.Unmarshal([]byte(value), &items) != nil {
+			return bad(`a JSON array of strings, e.g. ["a", "b"]`)
+		}
+		args := make([]interface{}, len(items))
+		for i, it := range items {
+			args[i] = it
+		}
+		p.Del(ctx, key)
+		if len(args) > 0 && kType == "list" {
+			p.RPush(ctx, key, args...)
+		} else if len(args) > 0 {
+			p.SAdd(ctx, key, args...)
+		}
+	case "zset":
+		var entries []zsetEntry
+		if json.Unmarshal([]byte(value), &entries) != nil {
+			return bad(`a JSON array like [{"member": "a", "score": 1}]`)
+		}
+		zs := make([]redis.Z, len(entries))
+		for i, e := range entries {
+			zs[i] = redis.Z{Member: e.Member, Score: e.Score}
+		}
+		p.Del(ctx, key)
+		if len(zs) > 0 {
+			p.ZAdd(ctx, key, zs...)
+		}
+	default:
+		return fmt.Errorf("editing %s keys is not supported", kType)
+	}
 	return nil
 }
 
-// DeleteKey removes a Redis key
+// DeleteKey removes a Redis key.
 func (r *RedisProvider) DeleteKey(config models.ConnectionConfig, key string) error {
-	client := r.buildClient(config)
-	defer client.Close()
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	return client.Del(ctx, key).Err()
+	return r.client(config).Del(ctx, key).Err()
 }

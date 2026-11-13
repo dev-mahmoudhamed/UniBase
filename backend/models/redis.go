@@ -13,8 +13,8 @@ type RedisKeyValueUpdateRequest struct {
 	Database  string `json:"database"`
 	OldKey    string `json:"oldKey" binding:"required"`
 	NewKey    string `json:"newKey" binding:"required"`
-	Value     string `json:"value" binding:"required"`
-	TTL       int64  `json:"ttl"` // TTL in seconds, -1 means no expiry
+	Value     string `json:"value"`
+	TTL       *int64 `json:"ttl"` // nil keeps the current expiry, -1 removes it, >0 sets it in seconds
 }
 
 // RedisKeyDeleteRequest is the request to delete a Redis key
@@ -29,6 +29,6 @@ type RedisKeyValueResponse struct {
 	Key      string `json:"key"`
 	Value    string `json:"value"`
 	Type     string `json:"type"`
-	TTL      int64  `json:"ttl"` // TTL in seconds, -1 means no expiry, -2 means key does not exist
+	TTL      int64  `json:"ttl"` // seconds left, -1 means no expiry
 	Database string `json:"database"`
 }

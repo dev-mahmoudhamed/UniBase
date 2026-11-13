@@ -1,44 +1,63 @@
 <div class="dialog-overlay" (click)="onCancel()">
     <div class="dialog-content" (click)="$event.stopPropagation()">
         <div class="dialog-header">
-            <h2 class="section-title">{{ isEditMode() ? 'Edit Connection' : 'New Connection' }}</h2>
+            <h2 class="section-title">{{ isEditMode() ? 'Edit connection' : 'New connection' }}</h2>
             <button class="btn btn-ghost p-2" (click)="onCancel()">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
         <div class="dialog-body">
-            <div class="form-group">
-                <label>Database Provider</label>
-                <select [ngModel]="selectedProviderId()"
-                    (ngModelChange)="selectedProviderId.set($event); onProviderChange()">
-                    @for (provider of providers(); track provider.id) {
-                    <option [value]="provider.id">{{ provider.displayName }}</option>
-                    }
-                </select>
-            </div>
-
-            @for (field of fields(); track field.key) {
-            <div class="form-group">
-                <label>
-                    {{ field.label }}
-                    @if (!field.required) {
-                    <span class="optional-badge">(optional)</span>
-                    }
-                </label>
-
-                @if (field.type === 'select') {
-                <select [ngModel]="getFieldValue(field.key)" (ngModelChange)="setFieldValue(field.key, $event)">
-                    @for (option of field.options; track option) {
-                    <option [value]="option">{{ option }}</option>
-                    }
-                </select>
-                } @else {
-                <input [type]="field.type" [ngModel]="getFieldValue(field.key)"
-                    (ngModelChange)="setFieldValue(field.key, $event)" [placeholder]="field.placeholder || ''">
+            <div class="engine-tiles" role="radiogroup" aria-label="Database engine">
+                @for (provider of providers(); track provider.id) {
+                <button type="button" class="engine-tile" role="radio"
+                    [attr.aria-checked]="provider.id === selectedProviderId()"
+                    [class.selected]="provider.id === selectedProviderId()"
+                    [style.--engine]="'var(--eng-' + provider.id + ')'" [disabled]="isEditMode()"
+                    (click)="selectedProviderId.set(provider.id); onProviderChange()">
+                    <img [src]="provider.icon" alt="" width="22" height="22">
+                    <span>{{ provider.displayName }}</span>
+                </button>
                 }
             </div>
-            }
+
+            <div class="fields">
+                @for (field of fields(); track field.key) {
+                <div class="form-group" [class.half]="halfWidth.has(field.key)">
+                    <label [for]="'field-' + field.key">
+                        {{ field.label }}
+                        @if (!field.required) {
+                        <span class="optional-badge">optional</span>
+                        }
+                    </label>
+
+                    @if (field.type === 'select') {
+                    <select [id]="'field-' + field.key" [ngModel]="getFieldValue(field.key)"
+                        (ngModelChange)="setFieldValue(field.key, $event)">
+                        @for (option of field.options; track option) {
+                        <option [value]="option">{{ option }}</option>
+                        }
+                    </select>
+                    } @else {
+                    <input [id]="'field-' + field.key" [type]="field.type" [ngModel]="getFieldValue(field.key)"
+                        (ngModelChange)="setFieldValue(field.key, $event)" [placeholder]="field.placeholder || ''">
+                    }
+                </div>
+
+                @if (field.key === 'name') {
+                <div class="form-group">
+                    <label>Environment</label>
+                    <div class="segmented" role="radiogroup" aria-label="Environment">
+                        @for (env of environments; track env.value) {
+                        <button type="button" role="radio" [class.selected]="currentEnvironment() === env.value"
+                            [class.prod]="env.value === 'prod'" [attr.aria-checked]="currentEnvironment() === env.value"
+                            (click)="setFieldValue('environment', env.value)">{{ env.label }}</button>
+                        }
+                    </div>
+                </div>
+                }
+                }
+            </div>
 
             @if (errors().length > 0) {
             <div class="error-messages">
@@ -48,34 +67,28 @@
             </div>
             }
 
-            <div class="test-section">
-                <button class="btn btn-violet-ghost w-full" (click)="!testStatus().loading && onTest()" [disabled]="testStatus().loading">
-                    @if (testStatus().loading) {
-                        <span class="spinner-small"></span>
-                        Testing...
-                    } @else {
-                        <i class="fa-solid fa-plug"></i>
-                        Test Connection
-                    }
-                </button>
-
-                @if (!testStatus().loading && testStatus().message) {
-                <div class="test-status" [class.success]="testStatus().success" [class.error]="!testStatus().success">
-                    <i class="fa-solid" [class.fa-circle-check]="testStatus().success" [class.fa-circle-exclamation]="!testStatus().success"></i>
-                    {{ testStatus().message }}
-                </div>
-                }
-            </div>
-
         </div>
 
+        @if (!testStatus().loading && testStatus().message) {
+        <div class="test-status" [class.success]="testStatus().success" [class.error]="!testStatus().success">
+            <i class="fa-solid" [class.fa-circle-check]="testStatus().success"
+                [class.fa-circle-exclamation]="!testStatus().success"></i>
+            {{ testStatus().message }}
+        </div>
+        }
+
         <div class="dialog-footer">
-            <button class="btn btn-secondary" (click)="onCancel()">Cancel</button>
+            <button class="btn btn-secondary" (click)="!testStatus().loading && onTest()" [disabled]="testStatus().loading">
+                <i class="fa-solid fa-plug"></i>
+                Test connection
+            </button>
+            <span class="spacer"></span>
+            <button class="btn btn-ghost" (click)="onCancel()">Cancel</button>
             <button class="btn btn-primary" (click)="onSave()" [disabled]="testStatus().loading">
                 @if (testStatus().loading) {
                 <span class="spinner-small"></span>
                 }
-                {{ isEditMode() ? 'Update Connection' : 'Save Connection' }}
+                {{ isEditMode() ? 'Save changes' : 'Save connection' }}
             </button>
         </div>
     </div>

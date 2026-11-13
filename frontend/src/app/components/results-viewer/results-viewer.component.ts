@@ -1,4 +1,4 @@
-import { Component, input, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, computed, effect, input, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { QueryResult, QueryError } from '../../models/database.model';
@@ -15,20 +15,43 @@ export class ResultsViewerComponent {
     result = input<QueryResult | QueryError | null>(null);
     isLoading = input(false);
     isCompact = signal(false);
+    activeSet = signal(0);
+
+    queryResult = computed(() => {
+        const r = this.result();
+        return r && 'resultSets' in r ? r : null;
+    });
+    errorMessage = computed(() => {
+        const r = this.result();
+        return r && 'message' in r ? r.message : null;
+    });
+    currentSet = computed(() => this.queryResult()?.resultSets[this.activeSet()] ?? null);
+
+    /** Column widths in px from the header and the first 100 values, so short IDs stay narrow. */
+    widths = computed(() => {
+        const set = this.currentSet();
+        if (!set) return [];
+        const sample = set.rows.slice(0, 100);
+        return set.columns.map((column, i) => {
+            let chars = column.length;
+            for (const row of sample) chars = Math.max(chars, this.formatValue(row[i]).length);
+            return Math.round(Math.min(360, Math.max(72, chars * 8.2 + 30)));
+        });
+    });
+
+    constructor() {
+        // A new result starts on its first result set.
+        effect(() => {
+            this.result();
+            this.activeSet.set(0);
+        });
+    }
 
     toggleCompact(): void {
         this.isCompact.set(!this.isCompact());
     }
 
-    isQueryResult(result: any): result is QueryResult {
-        return result && 'columns' in result;
-    }
-
-    isQueryError(result: any): result is QueryError {
-        return result && 'message' in result;
-    }
-
-    formatValue(val: any): string {
+    formatValue(val: unknown): string {
         if (val === null || val === undefined) return 'NULL';
         if (typeof val === 'object') {
             try {
@@ -38,9 +61,5 @@ export class ResultsViewerComponent {
             }
         }
         return String(val);
-    }
-
-    rowTrackBy(index: number, item: any): number {
-        return index;
     }
 }

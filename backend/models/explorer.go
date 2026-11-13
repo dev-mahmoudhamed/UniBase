@@ -33,18 +33,14 @@ type CollectionDataRequest struct {
 	Limit          int64             `json:"limit,omitempty"`
 }
 
-// CollectionMetadata represents detailed stats for a collection
+// CollectionMetadata holds the stats the database itself reports for a collection.
 type CollectionMetadata struct {
-	Count         int64    `json:"count"`
-	Size          int64    `json:"size"`
-	StorageSize   int64    `json:"storageSize"`
-	IndexCount    int      `json:"indexCount"`
-	UnusedIndices int      `json:"unusedIndices"`
-	AvgQueryTime  string   `json:"avgQueryTime"`
-	ReadsPerSec   int      `json:"readsPerSec"`
-	WritesPerSec  int      `json:"writesPerSec"`
-	Trend         string   `json:"trend"`
-	Alerts        []string `json:"alerts,omitempty"`
+	Count          int64 `json:"count"`
+	Size           int64 `json:"size"`
+	StorageSize    int64 `json:"storageSize"`
+	AvgObjSize     int64 `json:"avgObjSize"`
+	IndexCount     int   `json:"indexCount"`
+	TotalIndexSize int64 `json:"totalIndexSize"`
 }
 
 // CollectionMetadataResponse is the API response for collection metadata

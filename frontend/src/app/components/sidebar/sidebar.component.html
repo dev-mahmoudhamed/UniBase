@@ -8,13 +8,21 @@
   </div>
   } @else {
   <div class="sidebar-header">
-    <button class="btn btn-add-connection" (click)="onAddConnection()" title="Add Connection">
+    <div class="brand">
+      <img src="favicon.ico" alt="" width="20" height="20">
+      <span>UniBase</span>
+      <button class="btn-collapse-sidebar" (click)="theme.toggle()"
+        [title]="theme.theme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'">
+        <i class="fa-solid" [class.fa-sun]="theme.theme() === 'dark'" [class.fa-moon]="theme.theme() === 'light'"></i>
+      </button>
+      <button class="btn-collapse-sidebar" (click)="onToggleSidebar()" title="Collapse sidebar"
+        id="sidebar-toggle-btn">
+        <i class="fa-solid fa-angles-left"></i>
+      </button>
+    </div>
+    <button class="btn btn-add-connection" (click)="onAddConnection()" title="Add a database connection">
       <i class="fa-solid fa-plus"></i>
-      Add Connection
-    </button>
-    <button class="btn btn-collapse-sidebar" (click)="onToggleSidebar()" title="Collapse Sidebar"
-      id="sidebar-toggle-btn">
-      <i class="fa-solid fa-angles-left"></i>
+      New connection
     </button>
   </div>
 
@@ -22,6 +30,7 @@
     <div class="connections-list">
       @for (connection of connections(); track connection.id) {
       <div class="connection-item" [class.active]="isActive(connection)"
+        [style.--engine]="'var(--eng-' + connection.provider + ')'"
         (contextmenu)="onRightClick($event, connection)">
         <div class="connection-header" (click)="selectConnection(connection)">
           <div class="connection-info">
@@ -32,6 +41,7 @@
               <img [src]="getProviderIcon(connection.provider)" [alt]="connection.provider">
             </div>
             <span class="name">{{ connection.name }}</span>
+            <span class="env-tag" [class.prod]="connection.environment === 'prod'">{{ envLabel(connection) }}</span>
           </div>
 
           <div class="connection-actions">
@@ -62,6 +72,8 @@
               <div class="skeleton-line short skeleton"></div>
               <div class="skeleton-line skeleton"></div>
             </div>
+            } @else if (connectionError()) {
+            <div class="connect-error">{{ connectionError() }}</div>
             } @else {
             <app-object-explorer [sessionId]="sessionId()"
               (nodeSelected)="onNodeSelected($event)"></app-object-explorer>

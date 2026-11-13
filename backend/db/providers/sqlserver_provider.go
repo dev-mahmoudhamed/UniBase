@@ -1,102 +1,71 @@
 package providers
 
 import (
+	"context"
 	"database/sql"
 	"db-server/db/utils"
 	"db-server/models"
 	"fmt"
+	"net"
 	"net/url"
+	"strconv"
 	"strings"
-	"time"
 
 	_ "github.com/denisenkom/go-mssqldb"
 )
 
-const (
-	sqlServerDriver     = "sqlserver"
-	sqlServerScriptPath = "./scripts/mssql/metadata.sql"
-)
+const sqlServerDriver = "sqlserver"
 
 type SQLServerProvider struct {
 	BaseProvider
-	db *sql.DB
 }
 
 func (s *SQLServerProvider) buildConnectionURL(config models.ConnectionConfig) string {
 	query := url.Values{}
 	query.Add("database", config.Database)
+	query.Add("connection timeout", "10")
 
 	u := &url.URL{
 		Scheme:   sqlServerDriver,
 		User:     url.UserPassword(config.User, config.Password),
-		Host:     fmt.Sprintf("%s:%d", config.Host, config.Port),
+		Host:     net.JoinHostPort(config.Host, strconv.Itoa(config.Port)),
 		RawQuery: query.Encode(),
 	}
 
 	return u.String()
 }
 
+// quoteName brackets a SQL Server identifier, doubling any ] inside it.
+func quoteName(name string) string {
+	return "[" + strings.ReplaceAll(name, "]", "]]") + "]"
+}
+
 func (s *SQLServerProvider) TestConnection(config models.ConnectionConfig) error {
-	connURL := s.buildConnectionURL(config)
-
-	db, err := s.OpenAndValidate(sqlServerDriver, connURL)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	if err := db.Ping(); err != nil {
-		return fmt.Errorf("error pinging database: %v", err)
-	}
-
-	return nil
+	return pingSQL(sqlServerDriver, s.buildConnectionURL(config))
 }
 
 func (s *SQLServerProvider) InitializeConnection(config models.ConnectionConfig) (string, interface{}, error) {
-	connURL := s.buildConnectionURL(config)
-
-	db, err := sql.Open(sqlServerDriver, connURL)
-	if err != nil {
+	if err := pingSQL(sqlServerDriver, s.buildConnectionURL(config)); err != nil {
 		return "", nil, err
 	}
-
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(time.Hour)
-
-	s.db = db
-	if err := db.Ping(); err != nil {
-		return "", nil, err
-	}
-
 	sessionID, err := utils.StoreSession(config)
-	if err != nil {
-		return "", nil, err
-	}
-
-	return sessionID, map[string]interface{}{}, nil
+	return sessionID, nil, err
 }
 
-func (s *SQLServerProvider) ExecuteQuery(config models.ConnectionConfig, query string) (models.QueryResult, error) {
-	connURL := s.buildConnectionURL(config)
-
-	db, err := s.OpenAndValidate(sqlServerDriver, connURL)
+func (s *SQLServerProvider) ExecuteQuery(ctx context.Context, config models.ConnectionConfig, query string) (models.QueryResult, error) {
+	db, err := sqlPool(sqlServerDriver, s.buildConnectionURL(config))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
-	defer db.Close()
-
-	return utils.ExecuteDynamicQuery(db, query)
+	return utils.ExecuteDynamicQuery(ctx, db, query)
 }
 
 func (s *SQLServerProvider) GetExplorerChildren(config models.ConnectionConfig, nodeType string, ctx map[string]string) ([]models.ExplorerNode, error) {
-	connURL := s.buildConnectionURL(config)
-
-	db, err := s.OpenAndValidate(sqlServerDriver, connURL)
+	db, err := sqlPool(sqlServerDriver, s.buildConnectionURL(config))
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+
 
 	switch nodeType {
 	case "root":
@@ -210,9 +179,9 @@ func (s *SQLServerProvider) getDatabaseChildFolders(ctx map[string]string) ([]mo
 }
 
 func (s *SQLServerProvider) getTableNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
+	query := fmt.Sprintf(`USE %s;
 	           SELECT t.object_id, SCHEMA_NAME(t.schema_id) AS schema_name, t.name 
-	           FROM sys.tables t WHERE t.is_ms_shipped = 0 ORDER BY t.name`, ctx["database"])
+	           FROM sys.tables t WHERE t.is_ms_shipped = 0 ORDER BY t.name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query tables: %w", err)
@@ -255,12 +224,12 @@ func (s *SQLServerProvider) getTableChildFolders(ctx map[string]string) ([]model
 }
 
 func (s *SQLServerProvider) getTableColumnNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
+	query := fmt.Sprintf(`USE %s;
 	          SELECT c.name, ty.name AS data_type, c.max_length, c.is_nullable
 	          FROM sys.columns c
 	          JOIN sys.types ty ON c.user_type_id = ty.user_type_id
 	          WHERE c.object_id = @p1
-	          ORDER BY c.column_id`, ctx["database"])
+	          ORDER BY c.column_id`, quoteName(ctx["database"]))
 
 	rows, err := db.Query(query, ctx["objectId"])
 	if err != nil {
@@ -292,10 +261,10 @@ func (s *SQLServerProvider) getTableColumnNodes(db *sql.DB, ctx map[string]strin
 }
 
 func (s *SQLServerProvider) getTableKeyNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
+	query := fmt.Sprintf(`USE %s;
 	          SELECT kc.name, kc.type_desc
 	          FROM sys.key_constraints kc
-	          WHERE kc.parent_object_id = @p1`, ctx["database"])
+	          WHERE kc.parent_object_id = @p1`, quoteName(ctx["database"]))
 
 	rows, err := db.Query(query, ctx["objectId"])
 	if err != nil {
@@ -321,13 +290,13 @@ func (s *SQLServerProvider) getTableKeyNodes(db *sql.DB, ctx map[string]string) 
 }
 
 func (s *SQLServerProvider) getTableIndexNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
+	query := fmt.Sprintf(`USE %s;
 	          SELECT i.name, i.type_desc
 	          FROM sys.indexes i
 	          WHERE i.object_id = @p1
 	            AND i.is_primary_key = 0
 	            AND i.is_unique_constraint = 0
-	            AND i.name IS NOT NULL`, ctx["database"])
+	            AND i.name IS NOT NULL`, quoteName(ctx["database"]))
 
 	rows, err := db.Query(query, ctx["objectId"])
 	if err != nil {
@@ -353,8 +322,8 @@ func (s *SQLServerProvider) getTableIndexNodes(db *sql.DB, ctx map[string]string
 }
 
 func (s *SQLServerProvider) getViewNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT SCHEMA_NAME(schema_id) AS schema_name, name FROM sys.views WHERE is_ms_shipped = 0 ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT SCHEMA_NAME(schema_id) AS schema_name, name FROM sys.views WHERE is_ms_shipped = 0 ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query views: %w", err)
@@ -380,8 +349,8 @@ func (s *SQLServerProvider) getViewNodes(db *sql.DB, ctx map[string]string) ([]m
 }
 
 func (s *SQLServerProvider) getProcedureNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT SCHEMA_NAME(schema_id) AS schema_name, name FROM sys.procedures WHERE is_ms_shipped = 0 ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT SCHEMA_NAME(schema_id) AS schema_name, name FROM sys.procedures WHERE is_ms_shipped = 0 ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query procedures: %w", err)
@@ -407,8 +376,8 @@ func (s *SQLServerProvider) getProcedureNodes(db *sql.DB, ctx map[string]string)
 }
 
 func (s *SQLServerProvider) getDatabaseTriggerNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT name FROM sys.triggers WHERE parent_class = 0 ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT name FROM sys.triggers WHERE parent_class = 0 ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query triggers: %w", err)
@@ -528,9 +497,9 @@ func (s *SQLServerProvider) getServerLogNodes(db *sql.DB) ([]models.ExplorerNode
 }
 
 func (s *SQLServerProvider) getTableConstraintNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
+	query := fmt.Sprintf(`USE %s;
 	          SELECT name, type_desc FROM sys.objects 
-	          WHERE parent_object_id = @p1 AND type IN ('C', 'D', 'F', 'PK', 'UQ') ORDER BY name`, ctx["database"])
+	          WHERE parent_object_id = @p1 AND type IN ('C', 'D', 'F', 'PK', 'UQ') ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query, ctx["objectId"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to query constraints: %w", err)
@@ -555,8 +524,8 @@ func (s *SQLServerProvider) getTableConstraintNodes(db *sql.DB, ctx map[string]s
 }
 
 func (s *SQLServerProvider) getTableTriggerNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT name FROM sys.triggers WHERE parent_id = @p1 ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT name FROM sys.triggers WHERE parent_id = @p1 ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query, ctx["objectId"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to query table triggers: %w", err)
@@ -581,8 +550,8 @@ func (s *SQLServerProvider) getTableTriggerNodes(db *sql.DB, ctx map[string]stri
 }
 
 func (s *SQLServerProvider) getTableStatisticNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT name FROM sys.stats WHERE object_id = @p1 ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT name FROM sys.stats WHERE object_id = @p1 ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query, ctx["objectId"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to query statistics: %w", err)
@@ -615,8 +584,8 @@ func (s *SQLServerProvider) getFunctionChildFolders(ctx map[string]string) ([]mo
 }
 
 func (s *SQLServerProvider) getTableValuedFunctionNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT SCHEMA_NAME(schema_id) AS schema_name, name FROM sys.objects WHERE type IN ('TF', 'IF', 'FT') AND is_ms_shipped = 0 ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT SCHEMA_NAME(schema_id) AS schema_name, name FROM sys.objects WHERE type IN ('TF', 'IF', 'FT') AND is_ms_shipped = 0 ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query table-valued functions: %w", err)
@@ -642,8 +611,8 @@ func (s *SQLServerProvider) getTableValuedFunctionNodes(db *sql.DB, ctx map[stri
 }
 
 func (s *SQLServerProvider) getScalarValuedFunctionNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT SCHEMA_NAME(schema_id) AS schema_name, name FROM sys.objects WHERE type IN ('FN', 'FS') AND is_ms_shipped = 0 ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT SCHEMA_NAME(schema_id) AS schema_name, name FROM sys.objects WHERE type IN ('FN', 'FS') AND is_ms_shipped = 0 ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query scalar-valued functions: %w", err)
@@ -678,8 +647,8 @@ func (s *SQLServerProvider) getSecurityChildFolders(ctx map[string]string) ([]mo
 }
 
 func (s *SQLServerProvider) getDbUserNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT name, type_desc FROM sys.database_principals WHERE type IN ('S', 'U', 'G') AND principal_id > 4 ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT name, type_desc FROM sys.database_principals WHERE type IN ('S', 'U', 'G') AND principal_id > 4 ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query users: %w", err)
@@ -712,8 +681,8 @@ func (s *SQLServerProvider) getDbRoleChildFolders(ctx map[string]string) ([]mode
 }
 
 func (s *SQLServerProvider) getDatabaseRoleNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT name FROM sys.database_principals WHERE type = 'R' AND principal_id > 0 ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT name FROM sys.database_principals WHERE type = 'R' AND principal_id > 0 ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query database roles: %w", err)
@@ -738,8 +707,8 @@ func (s *SQLServerProvider) getDatabaseRoleNodes(db *sql.DB, ctx map[string]stri
 }
 
 func (s *SQLServerProvider) getApplicationRoleNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT name FROM sys.database_principals WHERE type = 'A' ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT name FROM sys.database_principals WHERE type = 'A' ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query application roles: %w", err)
@@ -764,8 +733,8 @@ func (s *SQLServerProvider) getApplicationRoleNodes(db *sql.DB, ctx map[string]s
 }
 
 func (s *SQLServerProvider) getDbSchemaNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := fmt.Sprintf(`USE [%s];
-	          SELECT name FROM sys.schemas ORDER BY name`, ctx["database"])
+	query := fmt.Sprintf(`USE %s;
+	          SELECT name FROM sys.schemas ORDER BY name`, quoteName(ctx["database"]))
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query schemas: %w", err)
@@ -787,27 +756,4 @@ func (s *SQLServerProvider) getDbSchemaNodes(db *sql.DB, ctx map[string]string) 
 		})
 	}
 	return nodes, nil
-}
-
-func ParseScriptSections(content string) map[string]string {
-	sections := make(map[string]string)
-
-	parts := strings.Split(content, "-- name:")
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-
-		lines := strings.SplitN(part, "\n", 2)
-		if len(lines) < 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(lines[0])
-		query := strings.TrimSpace(lines[1])
-		sections[key] = query
-	}
-
-	return sections
 }

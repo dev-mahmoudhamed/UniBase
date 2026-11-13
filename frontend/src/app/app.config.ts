@@ -1,18 +1,19 @@
 import { ApplicationConfig, provideAppInitializer, provideZonelessChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideMonacoEditor } from 'ngx-monaco-editor-v2';
 import { inject } from '@angular/core';
 
 import { routes } from './app.routes';
 import { ProviderService } from './services/provider.service';
+import { sessionRetryInterceptor } from './services/connection.service';
 import { firstValueFrom } from 'rxjs';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideRouter(routes),
-    provideHttpClient(),
+    provideHttpClient(withInterceptors([sessionRetryInterceptor])),
     provideMonacoEditor({
       // Must be absolute so Web Workers can resolve the URL correctly.
       // Relative paths fail inside a WorkerGlobalScope because workers

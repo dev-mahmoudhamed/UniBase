@@ -1,81 +1,63 @@
 package providers
 
 import (
+	"context"
 	"database/sql"
 	"db-server/db/utils"
 	"db-server/models"
-	"encoding/json"
 	"fmt"
-	"os"
+	"net"
+	"strconv"
+	"strings"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 )
 
-const (
-	mysqlDriver     = "mysql"
-	mysqlTimeout    = 5 * time.Second
-	mysqlScriptPath = "./scripts/mysql/metadata.sql"
-)
+const mysqlDriver = "mysql"
 
 type MySQLProvider struct {
 	BaseProvider
 }
 
+// buildConnectionString uses the driver's own DSN formatter, which escapes
+// passwords containing @, / or ?.
 func (m *MySQLProvider) buildConnectionString(config models.ConnectionConfig) string {
-	// format: user:password@tcp(host:port)/dbname?parseTime=true&multiStatements=true
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true", config.User, config.Password, config.Host, config.Port, config.Database)
+	cfg := mysql.NewConfig()
+	cfg.User = config.User
+	cfg.Passwd = config.Password
+	cfg.Net = "tcp"
+	cfg.Addr = net.JoinHostPort(config.Host, strconv.Itoa(config.Port))
+	cfg.DBName = config.Database
+	cfg.ParseTime = true
+	cfg.MultiStatements = true
+	cfg.Timeout = 10 * time.Second
+	return cfg.FormatDSN()
+}
+
+// quoteIdent quotes a MySQL identifier, doubling any backtick inside it.
+func quoteIdent(name string) string {
+	return "`" + strings.ReplaceAll(name, "`", "``") + "`"
 }
 
 func (m *MySQLProvider) TestConnection(config models.ConnectionConfig) error {
-	connStr := m.buildConnectionString(config)
-
-	db, err := m.OpenAndValidate(mysqlDriver, connStr)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	return m.TestConnectionWithTimeout(db, mysqlTimeout)
+	return pingSQL(mysqlDriver, m.buildConnectionString(config))
 }
 
 func (m *MySQLProvider) InitializeConnection(config models.ConnectionConfig) (string, interface{}, error) {
-	connStr := m.buildConnectionString(config)
-
-	db, err := m.OpenAndValidate(mysqlDriver, connStr)
-	if err != nil {
+	if err := pingSQL(mysqlDriver, m.buildConnectionString(config)); err != nil {
 		return "", nil, err
 	}
-	defer db.Close()
-
-	scriptContent, err := os.ReadFile(mysqlScriptPath)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to read script: %w", err)
-	}
-
-	rawJson, err := m.ExecuteScript(db, string(scriptContent))
-	if err != nil {
-		return "", nil, err
-	}
-
 	sessionID, err := utils.StoreSession(config)
-	if err != nil {
-		return "", nil, err
-	}
-
-	return sessionID, json.RawMessage(rawJson), nil
+	return sessionID, nil, err
 }
 
-func (m *MySQLProvider) ExecuteQuery(config models.ConnectionConfig, query string) (models.QueryResult, error) {
-	connStr := m.buildConnectionString(config)
-
-	db, err := m.OpenAndValidate(mysqlDriver, connStr)
+func (m *MySQLProvider) ExecuteQuery(ctx context.Context, config models.ConnectionConfig, query string) (models.QueryResult, error) {
+	db, err := sqlPool(mysqlDriver, m.buildConnectionString(config))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
-	defer db.Close()
-
-	return utils.ExecuteDynamicQuery(db, query)
+	return utils.ExecuteDynamicQuery(ctx, db, query)
 }
 
 func (m *MySQLProvider) GetExplorerChildren(config models.ConnectionConfig, nodeType string, ctx map[string]string) ([]models.ExplorerNode, error) {
@@ -83,13 +65,11 @@ func (m *MySQLProvider) GetExplorerChildren(config models.ConnectionConfig, node
 		config.Database = dbName
 	}
 
-	connStr := m.buildConnectionString(config)
-
-	db, err := m.OpenAndValidate(mysqlDriver, connStr)
+	db, err := sqlPool(mysqlDriver, m.buildConnectionString(config))
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+
 
 	switch nodeType {
 	case "root":
@@ -268,7 +248,7 @@ func (m *MySQLProvider) myGetTableColumnNodes(db *sql.DB, ctx map[string]string)
 }
 
 func (m *MySQLProvider) myGetTableIndexNodes(db *sql.DB, ctx map[string]string) ([]models.ExplorerNode, error) {
-	query := `SHOW INDEXES FROM ` + "`" + ctx["table"] + "`" + ` FROM ` + "`" + ctx["database"] + "`"
+	query := "SHOW INDEXES FROM " + quoteIdent(ctx["table"]) + " FROM " + quoteIdent(ctx["database"])
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query indexes: %w", err)

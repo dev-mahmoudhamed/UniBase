@@ -1,4 +1,10 @@
 <div class="mongo-viewer">
+    @if (!collectionData()) {
+    <div class="viewer-empty pick">
+        <p>Pick a collection</p>
+        <span>Open a database in the sidebar and select a collection to browse its documents.</span>
+    </div>
+    } @else {
     <!-- ── Header ──────────────────────────────────────────────────────────── -->
     <div class="viewer-header">
         <div class="breadcrumb">
@@ -23,7 +29,7 @@
                 Processing...
             </span>
             }
-            <span class="doc-count">{{ collectionData()?.count }} document{{ collectionData()?.count !== 1 ? 's' : '' }}</span>
+            <span class="doc-count">{{ currentCount() }} document{{ currentCount() !== 1 ? 's' : '' }}</span>
         </div>
     </div>
 
@@ -52,7 +58,7 @@
             </div>
             } @else {
             <div class="document-list">
-                @for (doc of localDocuments(); track doc['_id']; let i = $index) {
+                @for (doc of localDocuments(); track docKey(doc, $index); let i = $index) {
                 <app-mongo-document-card [document]="doc" [isSaving]="isLoading()" (save)="onSaveDocument(i, $event)">
                 </app-mongo-document-card>
                 }
@@ -75,4 +81,5 @@
                 </div>
             </div>
     </div>
+    }
 </div>

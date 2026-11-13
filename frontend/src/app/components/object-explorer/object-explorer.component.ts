@@ -45,6 +45,16 @@ export class ObjectExplorerComponent {
 
     constructor() {
         effect(() => {
+            const key = this.explorerService.staleNode();
+            if (!key) return;
+            this.explorerService.staleNode.set(null);
+            const node = this.findNode(this.allTreeNodes(), key);
+            if (node && node.expanded) {
+                node.children = [];
+                this.onNodeExpand({ node } as TreeNodeExpandEvent);
+            }
+        });
+        effect(() => {
             const sid = this.sessionId();
             if (sid) {
                 this.loadRootNodes(sid);
@@ -102,6 +112,15 @@ export class ObjectExplorerComponent {
         });
     }
 
+    private findNode(nodes: TreeNode[], key: string): TreeNode | null {
+        for (const node of nodes) {
+            if (node.key === key) return node;
+            const found = node.children ? this.findNode(node.children, key) : null;
+            if (found) return found;
+        }
+        return null;
+    }
+
     private updateNodeInSource(
         nodes: TreeNode[],
         targetKey: string | undefined,
@@ -138,16 +157,23 @@ export class ObjectExplorerComponent {
         const context: Record<string, string> = {};
         if (node.data) {
             Object.keys(node.data).forEach(key => {
-                if (key !== 'nodeType' && key !== 'stats') {
-                    context[key] = node.data[key];
+                const value = node.data[key];
+                if (key !== 'nodeType' && (typeof value === 'string' || typeof value === 'number')) {
+                    context[key] = String(value);
                 }
             });
         }
 
         this.explorerService.getChildren(sessionId, nodeType, context).subscribe({
             next: (children) => {
+                // Children inherit the parent's context (database, schema, table…),
+                // so deeper nodes still query the right database. Their own keys win.
+                const withContext = children.map(child => ({
+                    ...child,
+                    data: { ...context, ...child.data }
+                }));
                 const sourceNodes = this.allTreeNodes();
-                this.updateNodeInSource(sourceNodes, node.key, children);
+                this.updateNodeInSource(sourceNodes, node.key, withContext);
                 this.allTreeNodes.set([...sourceNodes]);
             },
             error: (err) => {
@@ -179,10 +205,7 @@ export class ObjectExplorerComponent {
     }
 
     refreshSelectedNode(): void {
-
         const node = this.selectedNode();
-        console.log("selected not ->", node);
-
         if (!node) return;
 
         if (!node.leaf) {
@@ -239,19 +262,16 @@ export class ObjectExplorerComponent {
                     const meta = response?.data?.metadata;
                     if (!meta) return;
 
+                    const sampled = node.data?.stats?.fields;
                     const content: TooltipContent = {
                         name: node.label || '',
                         count: meta.count ?? 0,
                         size: meta.size ?? 0,
                         storageSize: meta.storageSize ?? 0,
+                        avgObjSize: meta.avgObjSize ?? 0,
                         indexCount: meta.indexCount ?? 0,
-                        unusedIndices: meta.unusedIndices ?? 0,
-                        avgQueryTime: meta.avgQueryTime ?? 'N/A',
-                        readsPerSec: meta.readsPerSec ?? 0,
-                        writesPerSec: meta.writesPerSec ?? 0,
-                        trend: meta.trend ?? '',
-                        fields: Array.isArray(meta.fields) ? meta.fields : [],
-                        alerts: Array.isArray(meta.alerts) ? meta.alerts : []
+                        totalIndexSize: meta.totalIndexSize ?? 0,
+                        fields: Array.isArray(sampled) ? sampled : []
                     };
 
                     node.data['tooltipContent'] = content;
@@ -302,12 +322,8 @@ interface TooltipContent {
     count: number;
     size: number;
     storageSize: number;
+    avgObjSize: number;
     indexCount: number;
-    unusedIndices: number;
-    avgQueryTime: string;
-    readsPerSec: number;
-    writesPerSec: number;
-    trend: string;
+    totalIndexSize: number;
     fields: string[];
-    alerts: string[];
 }

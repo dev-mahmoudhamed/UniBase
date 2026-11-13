@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 
 import { ConnectionService } from '../../services/connection.service';
 import { ProviderService } from '../../services/provider.service';
-import { DatabaseConnection } from '../../models/database.model';
+import { DatabaseConnection, ENVIRONMENTS } from '../../models/database.model';
 import { QueryService } from '../../services/query.service';
 import { finalize } from 'rxjs/operators';
 
@@ -43,6 +43,11 @@ export class ConnectionDialogComponent implements OnInit {
         return this.selectedProvider()?.fields || [];
     });
 
+    environments = ENVIRONMENTS;
+    currentEnvironment = computed(() => this.connection().environment ?? 'local');
+    /** Fields shown two per row. */
+    halfWidth = new Set(['host', 'port', 'user', 'password']);
+
     ngOnInit(): void {
         const editing = this.editConnection();
         if (editing) {
@@ -62,7 +67,8 @@ export class ConnectionDialogComponent implements OnInit {
         if (!provider) return;
 
         const initialConnection: Partial<DatabaseConnection> = {
-            provider: provider.id as any
+            provider: provider.id as any,
+            environment: this.connection().environment ?? 'local'
         };
 
         provider.fields.forEach(field => {
@@ -175,6 +181,10 @@ export class ConnectionDialogComponent implements OnInit {
                             id: editing.id,
                         };
                         this.connectionService.updateConnection(updatedConnection);
+                        // Open a new session so the changed settings take effect now.
+                        if (this.connectionService.activeConnection()?.id === editing.id) {
+                            this.connectionService.setActiveConnection(updatedConnection);
+                        }
                     } else {
                         const newConnection: DatabaseConnection = {
                             ...fullConnectionData,

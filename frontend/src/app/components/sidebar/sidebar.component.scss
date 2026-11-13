@@ -46,15 +46,25 @@
 // ── Expanded sidebar ──────────────────────────────────────────────────────────
 
 .sidebar-header {
-  padding: 12px;
+  padding: 10px 12px 12px;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 10px;
   border-bottom: 1px solid var(--border-dim);
-  background-color: rgba(255, 255, 255, 0.01);
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 14px;
+
+    span { flex: 1; }
+  }
 
   .btn-add-connection {
-    flex: 1;
+    width: 100%;
+    justify-content: center;
     padding: 6px 12px;
     font-size: 12px;
     font-weight: 600;
@@ -73,7 +83,7 @@
     }
 
     &:hover {
-      background-color: rgba(139, 92, 246, 0.18);
+      background-color: color-mix(in srgb, var(--primary) 18%, transparent);
       border-color: var(--primary);
       color: var(--primary-hover);
       transform: translateY(-1px);
@@ -124,6 +134,8 @@
 }
 
 .connection-item {
+  /* engine identity stripe on the left edge */
+  box-shadow: inset 3px 0 0 var(--engine, transparent);
   border-radius: var(--radius-md);
   transition: var(--transition);
   cursor: pointer;
@@ -131,12 +143,12 @@
   border: 1px solid transparent;
 
   &.active {
-    background-color: rgba(139, 92, 246, 0.05);
-    border-color: var(--primary-border);
-    
+    background-color: var(--bg-raised);
+    border-color: var(--border-bright);
+
     .connection-header {
-      .name { color: var(--primary-hover); font-weight: 500; }
-      .arrow-wrapper { color: var(--primary); }
+      .name { color: var(--text-primary); font-weight: 600; }
+      .arrow-wrapper { color: var(--text-secondary); }
     }
   }
 
@@ -192,7 +204,10 @@
   }
 
   .name {
-    font-size: 13px;
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-cond);
+    font-size: 14px;
     color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
@@ -201,28 +216,25 @@
   }
 }
 
+/* Hidden until hover, so the name gets the full row width */
 .connection-actions {
-  display: flex;
+  display: none;
   gap: 2px;
-  opacity: 0;
-  transform: translateX(5px);
-  transition: all 0.2s ease;
 }
 
 .connection-item:hover .connection-actions {
-  opacity: 1;
-  transform: translateX(0);
+  display: flex;
 }
 
 .connection-body {
   padding: 4px 12px 12px 34px;
-  border-top: 1px solid rgba(139, 92, 246, 0.05);
+  border-top: 1px solid color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .connection-meta {
   margin-bottom: 12px;
   padding: 6px 10px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-app);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-dim);
 
@@ -294,7 +306,7 @@
   background-color: var(--bg-card);
   border: 1px solid var(--border-bright);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(139, 92, 246, 0.1);
+  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent);
   padding: 6px;
   animation: contextMenuFadeIn 0.15s ease-out;
 }
@@ -334,11 +346,11 @@
   }
 
   &.danger {
-    color: #f87171;
+    color: var(--error);
     &:hover {
-      background-color: rgba(248, 113, 113, 0.1);
-      color: #ef4444;
-      border-color: rgba(248, 113, 113, 0.2);
+      background-color: color-mix(in srgb, var(--error) 10%, transparent);
+      color: var(--error);
+      border-color: color-mix(in srgb, var(--error) 20%, transparent);
     }
   }
 }
@@ -403,10 +415,21 @@
 
 .dialog-footer {
   padding: 16px 24px;
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: color-mix(in srgb, var(--text-primary) 2%, transparent);
   border-top: 1px solid var(--border-dim);
   display: flex;
   justify-content: flex-end;
   gap: 12px;
 }
 
+
+.connect-error {
+  margin: 8px 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+}

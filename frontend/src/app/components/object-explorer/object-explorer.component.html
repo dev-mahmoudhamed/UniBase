@@ -67,7 +67,6 @@
     } @else if (tooltip().content) {
     <div class="tt-header">
         <strong>{{ tooltip().content!.name }}</strong>
-        <span class="tt-trend">{{ tooltip().content!.trend }}</span>
     </div>
     <div class="tt-row">
         <span class="tt-label">Documents</span>
@@ -81,30 +80,15 @@
         <span class="tt-label">Storage</span>
         <span class="tt-value">{{ formatSize(tooltip().content!.storageSize) }}</span>
     </div>
+    <div class="tt-row">
+        <span class="tt-label">Avg document</span>
+        <span class="tt-value">{{ formatSize(tooltip().content!.avgObjSize) }}</span>
+    </div>
     <div class="tt-divider"></div>
-    <div class="tt-row">
-        <span class="tt-label">Reads / Writes</span>
-        <span class="tt-value">{{ tooltip().content!.readsPerSec }}/s · {{ tooltip().content!.writesPerSec }}/s</span>
-    </div>
-    <div class="tt-row">
-        <span class="tt-label">Avg query</span>
-        <span class="tt-value">{{ tooltip().content!.avgQueryTime }}</span>
-    </div>
     <div class="tt-row">
         <span class="tt-label">Indexes</span>
-        <span class="tt-value">{{ tooltip().content!.indexCount }}
-            @if (tooltip().content!.unusedIndices > 0) {
-            <span class="tt-warn">({{ tooltip().content!.unusedIndices }} unused)</span>
-            }
-        </span>
+        <span class="tt-value">{{ tooltip().content!.indexCount }} ({{ formatSize(tooltip().content!.totalIndexSize) }})</span>
     </div>
-
-    @if (tooltip().content!.alerts.length > 0) {
-    <div class="tt-divider"></div>
-    @for (alert of tooltip().content!.alerts; track $index) {
-    <div class="tt-alert"><i class="fa-solid fa-triangle-exclamation"></i> {{ alert }}</div>
-    }
-    }
 
     @if (tooltip().content!.fields.length > 0) {
     <div class="tt-divider"></div>

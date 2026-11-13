@@ -35,8 +35,8 @@ func UpdateMongoDocument(c *gin.Context) {
 		return
 	}
 
-	if err := mongoProvider.UpdateDocument(*config, req.Database, req.Collection, req.ObjectID, req.Properties); err != nil {
-		InternalError(c, err, "Failed to update document")
+	if err := mongoProvider.UpdateDocument(*config, req.Database, req.Collection, req.ID, req.Changes); err != nil {
+		InternalError(c, err, "Failed to update document: "+sanitizeError(err))
 		return
 	}
 

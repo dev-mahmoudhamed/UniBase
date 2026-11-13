@@ -1,13 +1,14 @@
 package providers
 
 import (
+	"context"
 	"database/sql"
 	"db-server/db/utils"
 	"db-server/models"
-	"encoding/json"
 	"fmt"
-	"os"
-	"time"
+	"net"
+	"net/url"
+	"strconv"
 
 	_ "github.com/lib/pq"
 )
@@ -15,89 +16,62 @@ import (
 const (
 	postgresDriver     = "postgres"
 	postgresDefaultSSL = "disable"
-	postgresTimeout    = 5 * time.Second
-	postgresScriptPath = "./scripts/pgsql/metadata.sql"
 )
 
 type PostgresProvider struct {
 	BaseProvider
 }
 
-// buildConnectionString creates a PostgreSQL connection string
+// buildConnectionString returns a postgres:// URL; url.URL escapes the user and
+// password, so spaces, quotes or @ in a password work.
 func (p *PostgresProvider) buildConnectionString(config models.ConnectionConfig) string {
 	sslMode := config.SSLMode
 	if sslMode == "" {
 		sslMode = postgresDefaultSSL
 	}
-
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		config.Host, config.Port, config.User, config.Password, config.Database, sslMode)
+	q := url.Values{}
+	q.Set("sslmode", sslMode)
+	q.Set("connect_timeout", "10")
+	u := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(config.User, config.Password),
+		Host:     net.JoinHostPort(config.Host, strconv.Itoa(config.Port)),
+		Path:     "/" + config.Database,
+		RawQuery: q.Encode(),
+	}
+	return u.String()
 }
 
 func (p *PostgresProvider) TestConnection(config models.ConnectionConfig) error {
-	connStr := p.buildConnectionString(config)
-
-	db, err := p.OpenAndValidate(postgresDriver, connStr)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	return p.TestConnectionWithTimeout(db, postgresTimeout)
+	return pingSQL(postgresDriver, p.buildConnectionString(config))
 }
 
 func (p *PostgresProvider) InitializeConnection(config models.ConnectionConfig) (string, interface{}, error) {
-	connStr := p.buildConnectionString(config)
-
-	db, err := p.OpenAndValidate(postgresDriver, connStr)
-	if err != nil {
+	if err := pingSQL(postgresDriver, p.buildConnectionString(config)); err != nil {
 		return "", nil, err
 	}
-	defer db.Close()
-
-	scriptContent, err := os.ReadFile(postgresScriptPath)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to read script: %w", err)
-	}
-
-	rawJson, err := p.ExecuteScript(db, string(scriptContent))
-	if err != nil {
-		return "", nil, err
-	}
-
 	sessionID, err := utils.StoreSession(config)
-	if err != nil {
-		return "", nil, err
-	}
-
-	return sessionID, json.RawMessage(rawJson), nil
+	return sessionID, nil, err
 }
 
-func (p *PostgresProvider) ExecuteQuery(config models.ConnectionConfig, query string) (models.QueryResult, error) {
-	connStr := p.buildConnectionString(config)
-
-	db, err := p.OpenAndValidate(postgresDriver, connStr)
+func (p *PostgresProvider) ExecuteQuery(ctx context.Context, config models.ConnectionConfig, query string) (models.QueryResult, error) {
+	db, err := sqlPool(postgresDriver, p.buildConnectionString(config))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
-	defer db.Close()
-
-	return utils.ExecuteDynamicQuery(db, query)
+	return utils.ExecuteDynamicQuery(ctx, db, query)
 }
 
 func (p *PostgresProvider) GetExplorerChildren(config models.ConnectionConfig, nodeType string, ctx map[string]string) ([]models.ExplorerNode, error) {
-	// Let's connect to the specific database if one is in the context
+	// Connect to the database the node belongs to, not just the connection's default.
 	if dbName, ok := ctx["database"]; ok && dbName != "" {
 		config.Database = dbName
 	}
 
-	connStr := p.buildConnectionString(config)
-
-	db, err := p.OpenAndValidate(postgresDriver, connStr)
+	db, err := sqlPool(postgresDriver, p.buildConnectionString(config))
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	switch nodeType {
 	case "root":

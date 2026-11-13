@@ -3,11 +3,20 @@ package providers
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"db-server/models"
+
+	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+const (
+	connectTimeout = 10 * time.Second
+	poolIdleTTL    = 15 * time.Minute
 )
 
 type BaseProvider struct{}
@@ -16,136 +25,110 @@ func (b *BaseProvider) GetCollectionMetadata(config models.ConnectionConfig, col
 	return models.CollectionMetadata{}, fmt.Errorf("metadata retrieval not implemented for this provider")
 }
 
-
-// TestConnectionWithTimeout tests database connection with a timeout
-func (b *BaseProvider) TestConnectionWithTimeout(db *sql.DB, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		return fmt.Errorf("ping failed: %w", err)
-	}
-
-	return nil
+// Connection pools are shared across requests, keyed by connection string, and
+// closed after poolIdleTTL without use. Opening a pool per request cost a full
+// TCP/TLS/login round trip on every tree click.
+type pooled struct {
+	db       *sql.DB
+	client   *mongo.Client
+	rdb      *redis.Client
+	lastUsed time.Time
 }
 
-func (s *SQLServerProvider) BuildExplorerTree(db *sql.DB, scripts map[string]string) (string, error) {
+var (
+	poolMu sync.Mutex
+	pools  = map[string]*pooled{}
+)
 
-	dbJson, err := s.ExecuteScript(db, scripts["databases"])
-	if err != nil {
-		return "", err
-	}
-
-	var dbList []struct {
-		Name     string `json:"name"`
-		IsSystem bool   `json:"is_system"`
-	}
-
-	if err := json.Unmarshal([]byte(dbJson), &dbList); err != nil {
-		return "", err
-	}
-
-	var result models.ExplorerTree
-
-	for _, dbMeta := range dbList {
-
-		_, err := db.Exec("USE [" + dbMeta.Name + "]")
-		if err != nil {
-			return "", err
+func init() {
+	go func() {
+		for range time.Tick(time.Minute) {
+			closeIdlePools()
 		}
-
-		// Execute all scripts
-		tablesJson, _ := s.ExecuteScript(db, scripts["tables"])
-		columnsJson, _ := s.ExecuteScript(db, scripts["columns"])
-		keysJson, _ := s.ExecuteScript(db, scripts["keys"])
-		indexesJson, _ := s.ExecuteScript(db, scripts["indexes"])
-		viewsJson, _ := s.ExecuteScript(db, scripts["views"])
-		procsJson, _ := s.ExecuteScript(db, scripts["procedures"])
-		triggersJson, _ := s.ExecuteScript(db, scripts["triggers"])
-
-		// Unmarshal
-		var tables []models.Table
-		var columns []models.Column
-		var keys []models.Key
-		var indexes []models.Index
-		var views []models.SimpleNode
-		var procs []models.SimpleNode
-		var triggers []models.SimpleNode
-
-		json.Unmarshal([]byte(tablesJson), &tables)
-		json.Unmarshal([]byte(columnsJson), &columns)
-		json.Unmarshal([]byte(keysJson), &keys)
-		json.Unmarshal([]byte(indexesJson), &indexes)
-		json.Unmarshal([]byte(viewsJson), &views)
-		json.Unmarshal([]byte(procsJson), &procs)
-		json.Unmarshal([]byte(triggersJson), &triggers)
-
-		// 🔥 Build fast lookup map
-		tableMap := make(map[int]*models.Table)
-
-		for i := range tables {
-			tableMap[tables[i].ObjectID] = &tables[i]
-		}
-
-		// Attach columns
-		for _, col := range columns {
-			if table, ok := tableMap[col.ObjectID]; ok {
-				table.Columns = append(table.Columns, col)
-			}
-		}
-
-		// Attach keys
-		for _, key := range keys {
-			if table, ok := tableMap[key.ObjectID]; ok {
-				table.Keys = append(table.Keys, key)
-			}
-		}
-
-		// Attach indexes
-		for _, idx := range indexes {
-			if table, ok := tableMap[idx.ObjectID]; ok {
-				table.Indexes = append(table.Indexes, idx)
-			}
-		}
-
-		// Build database node
-		database := models.Database{
-			Name:             dbMeta.Name,
-			Tables:           tables,
-			Views:            views,
-			StoredProcedures: procs,
-			DatabaseTriggers: triggers,
-			IsSystem:         dbMeta.IsSystem,
-		}
-
-		if dbMeta.IsSystem {
-			result.SystemDatabases = append(result.SystemDatabases, database)
-		} else {
-			result.UserDatabases = append(result.UserDatabases, database)
-		}
-	}
-
-	finalJson, err := json.Marshal(result)
-	if err != nil {
-		return "", err
-	}
-
-	return string(finalJson), nil
+	}()
 }
 
-func (b *BaseProvider) ExecuteScript(db *sql.DB, script string) (string, error) {
-	var result string
-	err := db.QueryRow(script).Scan(&result)
-	if err != nil {
-		return "", fmt.Errorf("failed to execute script: %w", err)
+func closeIdlePools() {
+	poolMu.Lock()
+	defer poolMu.Unlock()
+	for key, p := range pools {
+		if time.Since(p.lastUsed) < poolIdleTTL {
+			continue
+		}
+		if p.db != nil {
+			_ = p.db.Close()
+		}
+		if p.client != nil {
+			_ = p.client.Disconnect(context.Background())
+		}
+		if p.rdb != nil {
+			_ = p.rdb.Close()
+		}
+		delete(pools, key)
 	}
-	return result, nil
 }
 
-func (b *BaseProvider) OpenAndValidate(driver, connStr string) (*sql.DB, error) {
-	db, err := sql.Open(driver, connStr)
+// sqlPool returns the shared *sql.DB for this driver and DSN. Callers must not close it.
+func sqlPool(driver, dsn string) (*sql.DB, error) {
+	key := driver + "|" + dsn
+	poolMu.Lock()
+	defer poolMu.Unlock()
+	if p, ok := pools[key]; ok {
+		p.lastUsed = time.Now()
+		return p.db, nil
+	}
+	db, err := sql.Open(driver, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open failed: %w", err)
 	}
+	db.SetConnMaxIdleTime(5 * time.Minute)
+	pools[key] = &pooled{db: db, lastUsed: time.Now()}
 	return db, nil
+}
+
+// pingSQL checks that the server is reachable and the credentials work.
+func pingSQL(driver, dsn string) error {
+	db, err := sqlPool(driver, dsn)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), connectTimeout)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("ping failed: %w", err)
+	}
+	return nil
+}
+
+// mongoClient returns the shared client for this URI. Callers must not disconnect it.
+func mongoClient(uri string) (*mongo.Client, error) {
+	key := "mongodb|" + uri
+	poolMu.Lock()
+	defer poolMu.Unlock()
+	if p, ok := pools[key]; ok {
+		p.lastUsed = time.Now()
+		return p.client, nil
+	}
+	opts := options.Client().ApplyURI(uri).SetConnectTimeout(connectTimeout).SetServerSelectionTimeout(connectTimeout)
+	client, err := mongo.Connect(context.Background(), opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect: %w", err)
+	}
+	pools[key] = &pooled{client: client, lastUsed: time.Now()}
+	return client, nil
+}
+
+// redisClient returns the shared client for these options. Callers must not close it.
+func redisClient(opts *redis.Options) *redis.Client {
+	key := fmt.Sprintf("redis|%s|%s|%s|%d", opts.Addr, opts.Username, opts.Password, opts.DB)
+	poolMu.Lock()
+	defer poolMu.Unlock()
+	if p, ok := pools[key]; ok {
+		p.lastUsed = time.Now()
+		return p.rdb
+	}
+	opts.DialTimeout = connectTimeout
+	rdb := redis.NewClient(opts)
+	pools[key] = &pooled{rdb: rdb, lastUsed: time.Now()}
+	return rdb
 }

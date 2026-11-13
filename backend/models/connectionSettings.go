@@ -54,9 +54,17 @@ func (c *ConnectionConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// ResultSet is one table of results. Rows are positional, so duplicate column
+// names (a.id, b.id in a join) don't overwrite each other.
+type ResultSet struct {
+	Columns   []string        `json:"columns"`
+	Rows      [][]interface{} `json:"rows"`
+	RowCount  int             `json:"rowCount"`
+	Truncated bool            `json:"truncated"`
+}
+
+// QueryResult holds every result set a script returned, in order.
 type QueryResult struct {
-	Columns       []string                 `json:"columns"`
-	Rows          []map[string]interface{} `json:"rows"`
-	RowCount      int                      `json:"rowCount"`
-	ExecutionTime int64                    `json:"executionTime"`
+	ResultSets    []ResultSet `json:"resultSets"`
+	ExecutionTime int64       `json:"executionTime"`
 }
